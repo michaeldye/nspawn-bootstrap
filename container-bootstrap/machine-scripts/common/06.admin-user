@@ -1,0 +1,23 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Adding admin user to $FQDN"
+
+useradd -b /home -U -m -r -s /bin/bash admin
+mkdir -p /home/admin/.ssh
+
+cat > /home/admin/.ssh/authorized_principals<<EOF
+admin
+EOF
+
+chown -R admin:admin /home/admin/.ssh
+chmod 755 /home/admin/.ssh
+find /home/admin/.ssh -type f -exec chmod 600 {} \;

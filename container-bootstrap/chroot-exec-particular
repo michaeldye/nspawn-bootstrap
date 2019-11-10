@@ -1,0 +1,19 @@
+#!/bin/bash -ex
+
+HOST=$1; shift
+DOMAIN=$1; shift
+ROOT_PASS=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing chroot mods for $FQDN"
+
+source /root/.bash_profile
+cat /root/.bash_profile
+
+echo "root:$ROOT_PASS" | chpasswd
+echo "$HOST" > /etc/hostname
+cat > /etc/hosts <<EOF
+127.0.0.1	localhost.localdomain localhost
+127.0.1.1	$HOSTNAME.$DOMAIN $HOST
+EOF

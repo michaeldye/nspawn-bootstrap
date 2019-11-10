@@ -1,0 +1,12 @@
+#!/bin/bash -e
+
+# boilerplate, make sure this is idempotent
+
+source /root/.bash_profile
+
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+export DEBCONF_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+echo exit 101 > /usr/sbin/policy-rc.d
+chmod +x /usr/sbin/policy-rc.d

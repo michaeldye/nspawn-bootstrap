@@ -1,0 +1,49 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+SSH_MOUNT=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing ssh-trust installation for $FQDN"
+
+mkdir -p /etc/ssh
+
+for c in $SSH_MOUNT/${DOMAIN}-ca.pub; do
+  cat $c >> /etc/ssh/ca_keys
+  echo "@cert-authority * $(cat $c)" > /etc/ssh/ssh_known_hosts
+  echo "Copied $c to /etc/ssh/ca_keys on $FQDN"
+done
+
+
+if ls -A $SSH_MOUNT/ssh_host_*key*$FQDN*; then
+  cp -vfa $SSH_MOUNT/ssh_host_*key*$FQDN* /etc/ssh/ && chown root:root /etc/ssh/ssh_host_*
+  chmod 600 /etc/ssh/ssh_host_*
+else
+  (>&2 echo "Missing SSH configuration info expected for hist $FQDN in $SSH_MOUNT")
+  exit 2
+fi
+
+# these are used to determine if post-install should generate keys; make symlinks to avoid that
+(cd /etc/ssh/;
+  ln -s $(ls ssh_host_rsa_key-* | grep -v pub) ssh_host_rsa_key;
+  ln -s $(ls ssh_host_rsa_key-*.pub | grep -v cert) ssh_host_rsa_key.pub;
+  ln -s $(ls ssh_host_ed25519_key-* | grep -v pub) ssh_host_ed25519_key;
+  ln -s $(ls ssh_host_ed25519_key-*.pub | grep -v cert) ssh_host_ed25519_key.pub;
+)
+
+# add replacement content
+cp $(dirname $0)/fs/etc/ssh/sshd_config /etc/ssh/
+
+find /etc/ssh/ -iname "ssh_host_*_key-$FQDN" -printf "%f\0" | xargs -0 -I{} echo "HostKey /etc/ssh/{}" >> /etc/ssh/sshd_config
+find /etc/ssh/ -iname "ssh_host_*_key-$FQDN-cert.pub" -printf "%f\0" | xargs -0 -I{} echo "HostCertificate /etc/ssh/{}" >> /etc/ssh/sshd_config
+
+mkdir -p /root/.ssh
+echo "admin" > /root/.ssh/authorized_principals
+
+/usr/bin/apt-get install -yq openssh-server openssh-client

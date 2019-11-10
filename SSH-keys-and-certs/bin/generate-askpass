@@ -1,0 +1,57 @@
+#!/bin/bash -e
+
+BASEDIR="$(dirname $0)"
+GENDIR="$(realpath $BASEDIR/../generated)"
+
+TEMP=$(mktemp -d)
+
+trap "rm -Rf $TEMP" SIGINT EXIT
+
+function out() {
+  tag=$1; shift
+  msg=$1; shift
+
+  (echo "$tag $msg" >&2)
+}
+
+E="[ERROR]"
+I="[INFO]"
+W="[WARNING]"
+
+usage_str="usage: echo 'password' | $0"
+
+# supports '--help', '-h', '-?', '--?'
+[[ "$1" =~ ^-{1,2}(h(elp)?|\\?) ]] && out $I $usage_str && exit 0
+
+[[ ! -d "$GENDIR" ]] && {
+  mkdir $GENDIR
+} || {
+  out $I "Using existing $GENDIR output directory"
+}
+
+[[ -f "$GENDIR/askpass" ]] && {
+  out $E "$GENDIR/askpass already exists, please delete it before continuing"
+  exit 1
+}
+
+echo "Password entry via stdin; if entering manually, end with CTRL-d"
+cat > $TEMP/askpass <<'EOF'
+#!/bin/sh -e
+
+echo "##PP##"
+EOF
+
+chmod 500 $TEMP/askpass
+sed -i "s,##PP##,$(cat <&0)," $TEMP/askpass
+
+[[ -f "$TEMP/askpass" ]] && {
+  mv $TEMP/askpass $GENDIR/askpass
+  out "Output script written as $(realpath $GENDIR/askpass)"
+} || {
+  out $E "Missing expected $TEMP/askpass"
+  exit 1
+}
+
+out $I "Finished."
+
+exit 0

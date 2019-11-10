@@ -1,0 +1,14 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Adding DNS client tools for $FQDN"
+
+apt-get install -y bind9utils bind9-host iputils-ping

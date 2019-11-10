@@ -1,0 +1,20 @@
+#!/bin/bash -e
+
+# intendent to be called by dnsmasq using --dhcp-script option
+
+BASEDIR="$(dirname $0)"
+GENDIR="$(realpath $BASEDIR/../generated)"
+
+SSH_CONFIG_FILE=$GENDIR/ssh-config
+
+ACT=$1; shift
+MAC=$2; shift
+IP=$3; shift
+HOST=$4; shift
+
+[[ "$ACT" == "add" ]] && [[ -f "$SSH_CONFIG_FILE" ]] && {
+  # TODO: fix so that it uses the Host (hostname) line to match; this will help us endure address changes
+  sed -i "s/Hostname $HOST\(.*\)/Hostname $3/g" $SSH_CONFIG_FILE
+}
+
+exit 0

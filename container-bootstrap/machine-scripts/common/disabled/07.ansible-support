@@ -1,0 +1,19 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing ansible support setup operations on $FQDN"
+
+# apt-get install -y sudo python build-essential curl software-properties-common apt-transport-https ca-certificates
+apt-get install -y sudo python curl software-properties-common apt-transport-https ca-certificates
+
+sed -i 's,%admin ALL=(ALL) ALL,%admin ALL=(ALL) NOPASSWD: ALL,g' /etc/sudoers
+groupadd -g 1926 admin
+usermod -aG admin dude

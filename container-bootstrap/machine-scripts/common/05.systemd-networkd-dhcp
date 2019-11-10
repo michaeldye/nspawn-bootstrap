@@ -1,0 +1,31 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing systemd networkd w/ DHCP setup operations for $FQDN"
+
+# works for bridged networking w/ DHCP and DNS on the bridge
+cat > /etc/systemd/network/host0.network <<EOF
+[Match]
+Name=host0
+
+[Network]
+DHCP=ipv4
+Domains=$DOMAIN
+EOF
+
+# TODO: figure out if this could be done with systemctl commands in chroot
+if [ ! -e "/etc/systemd/system/multi-user.target.wants/systemd-networkd.service" ]; then
+	ln -s /lib/systemd/system/systemd-networkd.service /etc/systemd/system/multi-user.target.wants/
+fi
+
+if [ ! -e "/etc/systemd/system/multi-user.target.wants/systemd-resolved.service" ]; then
+  ln -s /lib/systemd/system/systemd-resolved.service /etc/systemd/system/multi-user.target.wants/
+fi

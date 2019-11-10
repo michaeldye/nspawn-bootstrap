@@ -1,0 +1,322 @@
+#!/bin/bash
+
+SOURCE=$(realpath $(dirname $0))
+
+usage() {
+  echo "Usage: $0 -o /var/lib/machines [-f fqdn [-b /chroot/base/dir]]|[-g generate_base_dir_name] [-p root_password] [-s ssh_trust_mount]"
+}
+
+function mount_rbind_and_rslave() {
+  DIR=$1; shift
+  SUFFIX=$1; shift
+
+  mount --rbind /$SUFFIX $DIR/$SUFFIX
+  mount --make-rslave $DIR/$SUFFIX
+}
+
+# mount and umount_if need to be consistent
+mount_all() {
+  local DIR=$1; shift
+  local SSH_TRUST=$1; shift
+
+  # consistent with umount function variable
+
+  mount -t proc /proc $DIR/proc
+  # mount --rbind /tmp $DIR/tmp
+
+  #mount --bind /dev/pts $DIR/dev/pts
+  mount_rbind_and_rslave "$DIR" "dev"
+
+  mount_rbind_and_rslave "$DIR" "sys"
+
+  if [[ "$SSH_TRUST" != "" ]]; then
+    (>&2 echo "INFO: Mounting $SSH_TRUST as $DIR/mnt/ssh_trust")
+    mkdir -p $DIR/mnt/ssh_trust
+    mount -o bind,ro $SSH_TRUST $DIR/mnt/ssh_trust
+
+    start=$(date -u +%s)
+    while true; do
+      ls -A $DIR/mnt/ssh_trust && break
+      (>&2 echo "INFO: Waiting for $DIR/mnt/ssh_trust")
+
+      (($(date -u +%s)-now > 10)) && exit 77
+
+      sleep 1
+    done
+  fi
+
+  (>&2 echo "INFO: Mounts $(grep -q $DIR /proc/mounts)")
+}
+
+umount_0() {
+  DIR=$1; shift
+  SUFFIX=$1; shift
+
+  if $(grep -q "$DIR/$SUFFIX " /proc/mounts); then
+    umount -R $DIR/$SUFFIX
+  fi
+}
+
+# umount_if and mount need to be consistent
+umount_if() {
+  DIR=$1; shift
+  if [[ "$DIR"  == "" ]] || [[ "$DIR" == "/" ]]; then
+    (>&2 echo "Refusing to umount with prefix '$DIR'")
+  elif grep -qs "$DIR" /proc/mounts; then
+    (>&2 echo "INFO: Continually attempting umounts of $DIR subdirs...")
+
+    while true; do
+      grep -qs "$DIR" /proc/mounts || break
+
+      umount_0 $DIR "mnt/ssh_trust"
+
+      #umount_0 $DIR "dev/pts"
+      umount_0 $DIR "dev"
+      # umount_0 $DIR "tmp"
+      umount_0 $DIR "proc"
+      umount_0 $DIR "sys"
+
+      sleep 1
+    done
+
+    (>&2 echo "INFO: All umounts eventually succeessful")
+  else
+    (>&2 echo "INFO: No mounts to cleanup")
+  fi
+}
+
+cleanup() {
+  local DIR=$1; shift
+  (>&2 echo "INFO: Issued cleanup of $DIR")
+
+  if [[ "$DIR"  == "" ]] || [[ "$DIR" == "/" ]]; then
+    (>&2 echo "Refusing to umount with prefix '$DIR'")
+  else
+    if umount_if $DIR; then
+      rm -Rf $DIR
+    else
+      (>&2 echo "Refusing to clean up $DIR b/c unmounts failed")
+    fi
+  fi
+}
+
+provision() {
+  local YES=$1; shift
+  local TEMPD=$1; shift
+  local FQDN=$1; shift
+
+  local st=$1; shift
+  if [ "$st" != "" ]; then
+    local SSH_TRUST_MOUNT=$(realpath $st)
+  fi
+
+  local ob=$1; shift
+  if [ "$ob" != "" ]; then
+    local OUTDIR_BASE=$(realpath $ob)
+  fi
+
+  local cb=$1; shift
+  if [ "$cb" != "" ]; then
+    local CHROOT_BASE=$(realpath $cb)
+  fi
+
+  local GENERATE_BASE_DIR_NAME=$1; shift
+  local ROOT_PASS=$1; shift
+
+  if [[ "$TEMPD"  == "" ]] || [[ "$TEMPD" == "/" ]]; then
+    (>&2 echo "Improper temporary FS root provided: '$TEMPD'")
+    exit 4
+  else
+    trap "cleanup $TEMPD" INT QUIT TERM EXIT
+  fi
+
+read -r -d '' dout <<EOF
+DEBUG options
+    yes: $YES
+    tempd: $TEMPD
+    fqdn: $FQDN
+    ssh_trust_mount: $SSH_TRUST_MOUNT
+    outdir_base: $OUTDIR_BASE
+    chroot_base: $CHROOT_BASE
+    generate_base_dir_name: $GENERATE_BASE_DIR_NAME
+    root_pass: $ROOT_PASS
+EOF
+  (>&2 echo "$dout")
+
+  # illegal combinations
+  if ! [[ -z "$FQDN" ]] && ! [[ -z "$GENERATE_BASE_DIR_NAME" ]]; then
+    (>&2 echo "Specifying both --fqdn and --generate_chroot_base_dir is prohibited, exiting.")
+    usage
+    exit 2
+  fi
+
+  if ! [[ -z "$FQDN" ]] && ! [[ -d "$SSH_TRUST_MOUNT" ]]; then
+    (>&2 echo "ssh trust mount option not specified or usable and required for setting up $FQDN.")
+    usage
+    exit 1
+  fi
+
+  if [[ "$ROOT_PASS" == "" ]]; then
+    ROOT_PASS=$(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32}; echo)
+  fi
+
+  # pkg_install_if
+
+  local OUTDIR=""
+  local HOST="?"
+  local DOMAIN="?"
+
+  if [[ "$GENERATE_BASE_DIR_NAME" != "" ]]; then
+    OUTDIR=$OUTDIR_BASE/$GENERATE_BASE_DIR_NAME
+  elif [[ "$FQDN" != "" ]]; then
+    HOST=$(echo "$FQDN" | cut -f1 -d.)
+    DOMAIN=$(echo "$FQDN" | cut -f2- -d.)
+    OUTDIR=$OUTDIR_BASE/$FQDN
+  else
+    (>&2 echo "Unknown argument or state, exiting.")
+    usage
+    exit 2
+  fi
+
+  if [[ -d "$OUTDIR" ]]; then
+    (>&2 echo "$OUTDIR already exists, exiting.")
+    exit 1
+  fi
+
+  echo -e "\n------------\nSettings\n------------\n  fqdn: $HOST.$DOMAIN\n  output directory: $OUTDIR\n  root pass: $ROOT_PASS\n"
+
+  echo "Using temporary directory $(ls -lad $TEMPD)"
+  echo "User: $(whoami)"
+
+  local code=0
+
+  if [[ -z "$YES" ]]; then
+    echo -en "\nContinue? y/[N] "
+    read resp
+    if echo "$resp" | grep -viq "^y"; then
+      echo "Aborted"
+      exit 0
+    fi
+
+    echo -e "\n"
+  fi
+
+  if ! [[ -z "$CHROOT_BASE" ]]; then
+    echo "Using $CHROOT_BASE files and skipping debootstrap step"
+
+    cp -Rfap $CHROOT_BASE/. $TEMPD/
+  else
+    echo "Using debootstrap to generate image"
+
+    # N.B. This can be done for foreign architechtures in two stages, see https://linux.die.net/man/8/debootstrap '--foreign'
+    if ! debootstrap --verbose --components=main,restricted,universe,multiverse --include=systemd-container --variant=minbase bionic $TEMPD http://mirrors.xmission.com/ubuntu/; then
+      (>&2 echo "ERROR: Failure to complete debootstrap")
+      exit 2
+    fi
+  fi
+
+  mount_all $TEMPD $SSH_TRUST_MOUNT
+  mkdir -p $TEMPD/setup/machine-scripts
+
+  echo "Configuring image..."
+
+  cp /etc/resolv.conf $TEMPD/etc
+  cp -avp $SOURCE/chroot-exec-* $TEMPD/setup/
+  cp $SOURCE/fs/root/.bash_profile $TEMPD/root/
+
+  # do if generating base or making particular image
+  if ! chroot $TEMPD /setup/chroot-exec-base "$ROOT_PASS"; then
+    (>&2 echo "ERROR: Failure executing chroot $TEMPD /setup/chroot-exec-base $ROOT_PASS")
+    exit 5
+  fi
+
+  if ! chroot $TEMPD /setup/chroot-exec-particular "$HOST" "$DOMAIN" "$ROOT_PASS"; then
+    (>&2 echo "ERROR: Failure executing chroot $TEMPD /setup/chroot-exec-base $HOST $DOMAIN $ROOT_PASS")
+    exit 8
+  fi
+
+  if [[ "$FQDN" != "" ]]; then
+    echo "Copying machine scripts for $FQDN..."
+
+    cp -Rfvp $SOURCE/machine-scripts/common/* $TEMPD/setup/machine-scripts/
+
+    if ls -A $SOURCE/machine-scripts/$FQDN 2>/dev/null; then
+      cp -Rfvp $SOURCE/machine-scripts/$FQDN/. $TEMPD/setup/machine-scripts/
+    fi
+
+    (cd $TEMPD/setup/machine-scripts;
+      scripts=$(find * -maxdepth 1 -type f | grep -P '^\d+\..*' | sort -t '.' -k1n)
+      (>&2 echo "INFO: scripts to execute in chroot: $scripts")
+
+      for f in $scripts; do
+        echo "Executing $f in $FQDN"
+        if ! chroot $TEMPD /bin/bash -x /setup/machine-scripts/$f "$HOST" "$DOMAIN" "/mnt/ssh_trust"; then
+          (>&2 echo "ERROR: Failure executing chroot $TEMPD /$f $HOST $DOMAIN /mnt/ssh_trust")
+          exit 6
+        fi
+      done)
+    code=$?
+  fi
+
+  umount_if $TEMPD
+
+  if [[ "$code" == 0 ]]; then
+    (>&2 echo -e "***\nOperations completed sucessfully")
+    rm -Rf $TEMPD/setup
+    mv $TEMPD $OUTDIR
+  else
+    (>&2 echo -e "***\nOperations failed; code: $code")
+  fi
+}
+
+TEMP_U=$(uuidgen)
+export TT=${TEMPDIR:=/tmp}
+TEMP=$(realpath $TT/container-bootstrap-$TEMP_U)
+mkdir -p $TEMP
+chmod 1750 $TEMP
+
+YES=""
+
+while (( "$#" )); do
+case "$1" in
+    -o|--output_dir_base)
+    OUTDIR_BASE="$2"
+    shift 2 # past argument
+    ;;
+    -f|--fqdn)
+    FQDN="$2"
+    shift 2 # past argument
+    ;;
+    -b|--chroot_base_dir)
+    CHROOT_BASE="$2"
+    if [ ! -e $CHROOT_BASE ]; then
+      (>&2 echo "Given $CHROOT_BASE does not exist, exiting.")
+      exit 1
+    fi
+    shift 2 # past argument
+    ;;
+    -g|--generate_base_dir_name)
+    GENERATE_BASE_DIR_NAME="$2"
+    shift 2 # past argument
+    ;;
+    -p|--root_password)
+    ROOT_PASS="$2"
+    shift 2 # past argument
+    ;;
+    -s|--ssh_trust_mount)
+    SSH_TRUST_MOUNT="$2"
+    shift 2 # past argument
+    ;;
+    -y|--yes)
+    YES="true"
+    shift 1 # past argument
+    ;;
+    *)
+    usage
+    exit 1
+    # unknown option
+    ;;
+esac
+done
+
+time provision "$YES" "$TEMP" "$FQDN" "$SSH_TRUST_MOUNT" "$OUTDIR_BASE" "$CHROOT_BASE" "$GENERATE_BASE_DIR_NAME" "$ROOT_PASS"

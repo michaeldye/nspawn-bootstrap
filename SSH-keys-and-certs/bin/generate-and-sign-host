@@ -1,0 +1,109 @@
+#!/bin/bash -e
+
+BASEDIR="$(dirname $0)"
+GENDIR="$(realpath $BASEDIR/../generated)"
+
+TEMP=$(mktemp -d)
+
+trap "rm -Rf $TEMP" SIGINT EXIT
+
+function out() {
+  tag=$1; shift
+  msg=$1; shift
+
+  (echo "$tag $msg" >&2)
+}
+
+E="[ERROR]"
+I="[INFO]"
+W="[WARNING]"
+
+usage_str="usage: $0 CA_domain hostname <IP>"
+
+(( "$#" < 2 )) && {
+  out $E "$usage_str" && exit 1
+} || {
+  # supports '--help', '-h', '-?', '--?'
+  [[ "$1" =~ ^-{1,2}(h(elp)?|\\?) ]] && out $I $usage_str && exit 0
+}
+
+rsa_key_bits=4096
+key_valid_weeks=208
+
+DOMAIN=$1
+HOST=$2
+IP=$3
+
+[[ ! -d "$GENDIR" ]] && {
+  out $E "Expected output directory for generated keys and certs does not exist, $GENDIR"
+  exit 1
+} || {
+  out $I "Using $GENDIR as output directory"
+}
+
+[[ -f "$GENDIR/ssh_host_*$HOST.$DOMAIN*" ]] && {
+  out $E "Keyfiles already exist for $HOST in $GENDIR, please delete them before continuing"
+  exit 1
+}
+
+PREFIX="ssh_host_"
+SUFFIX="_key-$HOST.$DOMAIN"
+
+CA_PRIVATE_KEY=$(realpath $GENDIR/$DOMAIN-ca)
+[[ ! -f "$CA_PRIVATE_KEY" ]] && {
+  out $E "CA key $CA_PRIVATE_KEY does not exist"
+  exit 1
+}
+
+cd $TEMP
+
+# bit length is ignored for ed25519 keys
+for ix in rsa,$rsa_key_bits ed25519,; do
+  OLDIFS=$IFS
+  IFS=","; set -- $ix
+  f="$TEMP/${PREFIX}${1}${SUFFIX}"
+
+  # generate
+  [[ "$2" == "" ]] && {
+    ssh-keygen -t $1 -N "" -f "$f" -C "$HOST.$DOMAIN"
+  } || {
+    ssh-keygen -b $2 -t $1 -N "" -f "$f" -C "$HOST.$DOMAIN"
+  }
+
+  out $I "Generated host key for alg $ix, signing..."
+
+  # sign
+  principal="$HOST,$HOST.$DOMAIN"
+  [[ "$IP" != "" ]] && {
+    principal="$principal,$IP"
+  }
+
+  [[ -x "$GENDIR/askpass" ]] && {
+    ap="-P \"$($GENDIR/askpass)\""
+  } || {
+    ap=""
+  }
+
+  env -i bash -c "ssh-keygen -s $CA_PRIVATE_KEY -h -n \"$principal\" -V -60m:+${key_valid_weeks}w $ap -I \"$HOST.$DOMAIN host key\" \"$f.pub\"" || (out $E "Failed to generate keypair and sign with ${DOMAIN}'s CA key" && exit 4)
+
+done
+IFS=$OLDIFS
+
+# if success, move files
+mv $TEMP/* $GENDIR/
+
+out $I "Generated output written to $(realpath $GENDIR)"
+
+# TODO: consider making this optional
+# TODO: make sequential so we don't have parallel writes
+gen_ssh_config=$GENDIR/ssh-config
+cat >> $gen_ssh_config<<EOF
+
+Host $HOST
+  Hostname $HOST.$DOMAIN
+EOF
+
+
+out $I "Finished."
+
+exit 0

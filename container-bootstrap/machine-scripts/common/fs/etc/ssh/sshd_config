@@ -1,0 +1,29 @@
+Ciphers aes256-ctr,aes128-ctr
+MACs hmac-sha2-512,hmac-sha2-256
+KexAlgorithms diffie-hellman-group-exchange-sha256,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha1
+
+SyslogFacility AUTH
+LogLevel INFO
+
+AuthorizedKeysFile  .ssh/authorized_keys
+AuthorizedPrincipalsFile %h/.ssh/authorized_principals
+TrustedUserCAKeys /etc/ssh/ca_keys
+UsePAM yes
+
+# enables RFC-4252 (section 8)
+PasswordAuthentication no
+
+# enables RFC-4256 (keyboard-interactive)
+ChallengeResponseAuthentication no
+HostbasedAuthentication no
+
+PermitRootLogin prohibit-password
+X11Forwarding no
+
+IgnoreRhosts yes
+
+StrictModes yes
+AllowAgentForwarding yes
+AllowTCPForwarding yes
+
+Subsystem sftp  /usr/lib/openssh/sftp-server

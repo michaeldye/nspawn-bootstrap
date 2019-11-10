@@ -1,0 +1,101 @@
+#!/bin/bash -e
+
+BASEDIR="$(dirname $0)"
+GENDIR="$(realpath $BASEDIR/../generated)"
+
+TEMP=$(mktemp -d)
+
+trap "rm -Rf $TEMP" SIGINT EXIT
+
+function out() {
+  tag=$1; shift
+  msg=$1; shift
+
+  (echo "$tag $msg" >&2)
+}
+
+E="[ERROR]"
+I="[INFO]"
+W="[WARNING]"
+
+usage_str="usage: $0 domain_name"
+
+(( "$#" < 1 )) && {
+  out $E "$usage_str" && exit 1
+} || {
+  # supports '--help', '-h', '-?', '--?'
+  [[ "$1" =~ ^-{1,2}(h(elp)?|\\?) ]] && out $I $usage_str && exit 0
+}
+
+DOMAIN=$1
+
+[[ ! -d "$GENDIR" ]] && {
+  mkdir $GENDIR
+} || {
+  out $I "Using existing $GENDIR output directory"
+}
+
+[[ "$DOMAIN" =~ -ca$ ]] && {
+  out $E "The suffix '-ca' will be automatically appended to $DOMAIN, you needn't provide it"
+  exit 1
+}
+
+# TODO: add additional checks on input here if truly valid domain names must be provided
+
+[[ -f "$GENDIR/$DOMAIN-ca" ]] && {
+  out $E "ERROR: $GENDIR/$DOMAIN-ca exists, refusing to overwrite"
+  exit 1
+}
+
+P_IN=""
+[[ -x "$GENDIR/askpass" ]] && {
+  out $I "$GENDIR/askpass exists, using that to supply CA passphrase"
+  P_IN="-N $($GENDIR/askpass)"
+} || {
+  out $I "$GENDIR/askpass does not exist, expecting user-supplied passphrase"
+}
+
+ssh-keygen -f $TEMP/${DOMAIN}-ca -C "CA key for $DOMAIN" $P_IN || (out $E "Error generating CA for $DOMAIN" && exit 1)
+
+cat > $TEMP/rem <<EOF
+#!/bin/bash -ex
+
+BASEDIR="\$(dirname \$0)"
+
+sudo chattr -i \$BASEDIR/${DOMAIN}-ca*
+rm \$BASEDIR/${DOMAIN}-ca*
+EOF
+
+chmod +x $TEMP/rem
+
+mv ${TEMP}/${DOMAIN}* $GENDIR/
+sudo chattr +i $GENDIR/${DOMAIN}-ca*
+out $I "Generated $(realpath $GENDIR/${DOMAIN}-ca)"
+
+mv ${TEMP}/rem ${GENDIR}/${DOMAIN}-ca-rem.bash
+out $I "Generated ca removal script $(realpath $GENDIR/${DOMAIN}-ca-rem.bash)"
+
+# TODO: consider making this optional
+cat > $GENDIR/${DOMAIN}-known-hosts<<EOF
+@cert-authority * $(cat $GENDIR/${DOMAIN}-ca.pub)
+EOF
+
+cat > $GENDIR/ssh-config<<EOF
+LogLevel VERBOSE
+ForwardAgent yes
+UserKnownHostsFile $GENDIR/${DOMAIN}-known-hosts
+PreferredAuthentications gssapi-with-mic,gssapi-keyex,hostbased,publickey
+KbdInteractiveAuthentication no
+PasswordAuthentication no
+IdentitiesOnly yes
+VerifyHostKeyDNS no
+
+# N.B. Below may be merely placeholders if 'sign-user' script wasn't used to update the facts here
+#CertificateFile
+#IdentityFile
+#User
+EOF
+
+out $I "Finished"
+
+exit 0
