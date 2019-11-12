@@ -4,7 +4,7 @@ SOURCE=$(realpath $(dirname $0))
 
 source $SOURCE/scripts-include-pkg
 
-echo "Executing installation of openjdk and hadoop"
+echo "Executing installation of openjdk, hadoop, and hbase"
 
 [[ -z "$JDK_PKG" ]] && (echo "JDK_PKG envvar unset, cannot install" >&2) && exit 1
 apt-get install -y openjdk-8-jdk-headless curl
@@ -13,7 +13,7 @@ apt-get install -y openjdk-8-jdk-headless curl
 tar zxf /setup/hadoop-$HADOOP_VER.tar.gz -C /usr --transform="s,hadoop-${HADOOP_VER},hadoop,"
 
 [[ -z "$HBASE_VER" ]] && (echo "HBASE envvar unset, cannot install" >&2) && exit 1
-tar zxf /setup/hbase-$HBASE_VER-bin.tar.gz -C /usr --transform="s,hbase-${HADOOP_VER},hbase,"
+tar zxf /setup/hbase-$HBASE_VER-bin.tar.gz -C /usr --transform="s,hbase-${HBASE_VER},hbase,"
 
 
 chown -R admin:admin /usr/{hadoop,hbase}
