@@ -1,0 +1,32 @@
+#!/bin/bash
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+SSH_MOUNT=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing ssh installation of admin creds for admin to $FQDN (private key content only, a previous step establishes trust)"
+
+mkdir -p /home/admin/.ssh
+echo "admin" > /home/admin/.ssh/authorized_principals
+cp $SSH_MOUNT/*admin*key* /home/admin/.ssh || (echo "Failed to copy admin user key and cert content from $SSH_MOUNT" && exit 1)
+cp $SSH_MOUNT/ssh-config /home/admin/.ssh/config || (echo "Failed to copy generated ssh config from $SSH_MOUNT" && exit 1)
+
+cert=$(basename $(ls /home/admin/.ssh/*admin-key-cert.pub)) || (echo "Failed to find expected user SSH cert" && exit 1)
+sed -i "s,CertificateFile.*,CertificateFile /home/admin/.ssh/$cert," /home/admin/.ssh/config
+
+key=$(basename $(ls /home/admin/.ssh/*admin-key)) || (echo "Failed to find expected user SSH key" && exit 1)
+sed -i "s,IdentityFile.*,IdentityFile /home/admin/.ssh/$key," /home/admin/.ssh/config
+
+sed -i "s,User,User admin," /home/admin/.ssh/config
+
+cp $SSH_MOUNT/${DOMAIN}-known-hosts /home/admin/.ssh/known_hosts || (echo "Failed to generated known hosts from $SSH_MOUNT" && exit 1)
+
+chmod 400 /home/admin/.ssh/*
+
+exit 0

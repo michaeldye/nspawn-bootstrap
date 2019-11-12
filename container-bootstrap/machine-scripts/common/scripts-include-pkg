@@ -10,3 +10,5 @@ export DEBCONF_NONINTERACTIVE_SEEN=true
 
 echo exit 101 > /usr/sbin/policy-rc.d
 chmod +x /usr/sbin/policy-rc.d
+
+[[ -f "/setup/chroot-dl-versions.env" ]] && source /setup/chroot-dl-versions.env

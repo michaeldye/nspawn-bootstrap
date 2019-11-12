@@ -221,14 +221,18 @@ EOF
   echo "Configuring image..."
 
   cp /etc/resolv.conf $TEMPD/etc
-  cp -avp $SOURCE/chroot-exec-* $TEMPD/setup/
-  cp $SOURCE/fs/root/.bash_profile $TEMPD/root/
 
-  # do if generating base or making particular image
-  if ! chroot $TEMPD /setup/chroot-exec-base "$ROOT_PASS"; then
-    (>&2 echo "ERROR: Failure executing chroot $TEMPD /setup/chroot-exec-base $ROOT_PASS")
-    exit 5
-  fi
+  cp -Rvfpa $SOURCE/setup $TEMPD/
+  # copy all fs seed content for setup over filesystem
+  cp -Rvfpa $TEMPD/setup/fs/. $TEMPD/
+
+  [[ -z "$CHROOT_BASE" ]] && {
+    # only do if there isn't a CHROOT_BASE specified, which is to say that we're making a base image or particular image without a base
+    chroot $TEMPD /setup/chroot-exec-base "$ROOT_PASS" || {
+      (>&2 echo "ERROR: Failure executing chroot $TEMPD /setup/chroot-exec-base $ROOT_PASS")
+      exit 5
+    }
+  }
 
   if ! chroot $TEMPD /setup/chroot-exec-particular "$HOST" "$DOMAIN" "$ROOT_PASS"; then
     (>&2 echo "ERROR: Failure executing chroot $TEMPD /setup/chroot-exec-base $HOST $DOMAIN $ROOT_PASS")
@@ -262,7 +266,7 @@ EOF
 
   if [[ "$code" == 0 ]]; then
     (>&2 echo -e "***\nOperations completed sucessfully")
-    rm -Rf $TEMPD/setup
+    [[ ! -z "$FQDN" ]] && rm -Rf $TEMPD/setup
     mv $TEMPD $OUTDIR
   else
     (>&2 echo -e "***\nOperations failed; code: $code")

@@ -1,0 +1,43 @@
+#!/bin/bash -ex
+
+ROOT_PASS=$1; shift
+
+echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
+export DEBCONF_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+
+echo exit 101 > /usr/sbin/policy-rc.d
+chmod +x /usr/sbin/policy-rc.d
+
+echo "Executing chroot mods for base image"
+
+source /root/.bash_profile
+
+# we do this for convenience b/c these are often ephemeral containers without other user accounts
+echo "root:$ROOT_PASS" | chpasswd
+
+sed -i 's/#Storage=auto/Storage=volatile/g' /etc/systemd/journald.conf
+
+rm -f /etc/systemd/system/multi-user.target.wants/machines.target
+rm -f /etc/systemd/system/timers.target.wants/fstrim.timer
+
+# rely on this update operation here
+apt-get update && apt-get install -y curl
+
+# read env
+[[ -f "/setup/chroot-dl-versions.env" ]] && source /setup/chroot-dl-versions.env
+TO_CACHE=("$JDK_PKG")
+
+for p in "${TO_CACHE[@]}"; do
+  apt-get -d install -y $p
+done
+
+# TODO: parallelize these and check for matching the sha sum
+
+[[ ! -f /setup/hadoop-$HADOOP_VER.tar.gz ]] && {
+  curl -l http://mirrors.ibiblio.org/apache/hadoop/common/hadoop-$HADOOP_VER/hadoop-$HADOOP_VER.tar.gz > /setup/hadoop-$HADOOP_VER.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
+}
+
+[[ ! -f /setup/hbase-$HBASE_VER.tar.gz ]] && {
+  curl -l http://mirror.metrocast.net/apache/hbase/$HBASE_VER/hbase-$HBASE_VER-bin.tar.gz > /setup/hbase-$HBASE_VER-bin.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
+}

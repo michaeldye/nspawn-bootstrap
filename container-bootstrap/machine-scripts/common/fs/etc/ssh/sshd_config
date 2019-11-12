@@ -22,7 +22,6 @@ X11Forwarding no
 
 IgnoreRhosts yes
 
-StrictModes yes
 AllowAgentForwarding yes
 AllowTCPForwarding yes
 

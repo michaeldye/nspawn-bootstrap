@@ -43,7 +43,4 @@ cp $(dirname $0)/fs/etc/ssh/sshd_config /etc/ssh/
 find /etc/ssh/ -iname "ssh_host_*_key-$FQDN" -printf "%f\0" | xargs -0 -I{} echo "HostKey /etc/ssh/{}" >> /etc/ssh/sshd_config
 find /etc/ssh/ -iname "ssh_host_*_key-$FQDN-cert.pub" -printf "%f\0" | xargs -0 -I{} echo "HostCertificate /etc/ssh/{}" >> /etc/ssh/sshd_config
 
-mkdir -p /root/.ssh
-echo "admin" > /root/.ssh/authorized_principals
-
 /usr/bin/apt-get install -yq openssh-server openssh-client
