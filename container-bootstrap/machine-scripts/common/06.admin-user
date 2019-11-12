@@ -12,12 +12,15 @@ FQDN="$HOST.$DOMAIN"
 echo "Adding admin user to $FQDN"
 
 useradd -b /home -U -m -r -s /bin/bash admin
+cp /root/.bash_profile /home/admin/.bash_profile
+cp /root/.profile /home/admin/.profile
+
 mkdir -p /home/admin/.ssh
 
 cat > /home/admin/.ssh/authorized_principals<<EOF
 admin
 EOF
 
-chown -R admin:admin /home/admin/.ssh
+chown -R admin:admin /home/admin
 chmod 755 /home/admin/.ssh
 find /home/admin/.ssh -type f -exec chmod 600 {} \;
