@@ -23,10 +23,13 @@ sed -i "s,CertificateFile.*,CertificateFile /home/admin/.ssh/$cert," /home/admin
 key=$(basename $(ls /home/admin/.ssh/*admin-key)) || (echo "Failed to find expected user SSH key" && exit 1)
 sed -i "s,IdentityFile.*,IdentityFile /home/admin/.ssh/$key," /home/admin/.ssh/config
 
-sed -i "s,User,User admin," /home/admin/.ssh/config
+sed -i "s,User .*,User admin," /home/admin/.ssh/config
 
 cp $SSH_MOUNT/${DOMAIN}-known-hosts /home/admin/.ssh/known_hosts || (echo "Failed to generated known hosts from $SSH_MOUNT" && exit 1)
+sed -i "s,UserKnownHostsFile.*,UserKnownHostsFile /home/admin/.ssh/known_hosts," /home/admin/.ssh/config
 
-chmod 400 /home/admin/.ssh/*
+chown -R admin:admin /home/admin/.ssh
+chmod 755 /home/admin/.ssh
+find /home/admin/.ssh -type f -exec chmod 600 {} \;
 
 exit 0
