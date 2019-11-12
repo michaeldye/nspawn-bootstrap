@@ -1,0 +1,29 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+echo "Executing installation of openjdk and hadoop"
+
+[[ -z "$JDK_PKG" ]] && (echo "JDK_PKG envvar unset, cannot install" >&2) && exit 1
+apt-get install -y openjdk-8-jdk-headless curl
+
+[[ -z "$HADOOP_VER" ]] && (echo "HADOOP envvar unset, cannot install" >&2) && exit 1
+tar zxf /setup/hadoop-$HADOOP_VER.tar.gz -C /usr --transform="s,hadoop-${HADOOP_VER},hadoop,"
+
+[[ -z "$HBASE_VER" ]] && (echo "HBASE envvar unset, cannot install" >&2) && exit 1
+tar zxf /setup/hbase-$HBASE_VER-bin.tar.gz -C /usr --transform="s,hbase-${HADOOP_VER},hbase,"
+
+
+chown -R admin:admin /usr/{hadoop,hbase}
+
+sed -i '/^export PATH=/d' ~admin/.bash_profile
+cat >> ~admin/.bash_profile <<EOF
+export HADOOP_HOME=/usr/hadoop
+export HBASE_HOME=/usr/hbase
+
+export PATH=\$HBASE_HOME/bin:\$HADOOP_HOME/bin:$PATH
+EOF
+
+exit 0

@@ -95,7 +95,7 @@ mv $TEMP/* $GENDIR/
 out $I "Generated output written to $(realpath $GENDIR)"
 
 # TODO: consider making this optional
-# TODO: make sequential so we don't have parallel writes
+# TODO: make sequential so we don't have parallel writes, this is run with xargs -Pn where n is usually max
 gen_ssh_config=$GENDIR/ssh-config
 cat >> $gen_ssh_config<<EOF
 
