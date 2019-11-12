@@ -2,6 +2,8 @@
 
 ROOT_PASS=$1; shift
 
+source /root/.bash_profile
+
 echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
 export DEBCONF_FRONTEND=noninteractive
 export DEBCONF_NONINTERACTIVE_SEEN=true
@@ -10,8 +12,6 @@ echo exit 101 > /usr/sbin/policy-rc.d
 chmod +x /usr/sbin/policy-rc.d
 
 echo "Executing chroot mods for base image"
-
-source /root/.bash_profile
 
 # we do this for convenience b/c these are often ephemeral containers without other user accounts
 echo "root:$ROOT_PASS" | chpasswd
