@@ -1,0 +1,21 @@
+
+sudo dnsmasq --interface=conhole --listen-address=172.31.0.254 \
+  --bind-interfaces --bogus-priv \
+  --domain-needed --domain=iaasbigdata.nextgen \
+  --dhcp-range=172.31.9.0,172.31.11.253 \
+  --cname=namenode1.iaasbigdata.nextgen,newhok.iaasbigdata.nextgen \
+  --cname=resourcemanager1.iaasbigdata.nextgen,millsport.iaasbigdata.nextgen \
+  --cname=jobhistory.iaasbigdata.nextgen,millsport.iaasbigdata.nextgen \
+  --cname=datanode1.iaasbigdata.nextgen,newkanagawa.iaasbigdata.nextgen \
+  --cname=nodemanager1.iaasbigdata.nextgen,newkanagawa.iaasbigdata.nextgen \
+  --cname=datanode2.iaasbigdata.nextgen,newpest.iaasbigdata.nextgen \
+  --cname=nodemanager2.iaasbigdata.nextgen,newpest.iaasbigdata.nextgen \
+  --cname=datanode3.iaasbigdata.nextgen,tekitomura.iaasbigdata.nextgen \
+  --cname=nodemanager3.iaasbigdata.nextgen,tekitomura.iaasbigdata.nextgen \
+  -q -d &
+  
+
+
+(find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -and -type l -printf "%P\n" | xargs -i basename {} ".$CON_DOMAIN" | xargs)
+
+
