@@ -1,6 +1,6 @@
 [Unit]
 Description=Hadoop Resourcemanager
-After=network-online.target hadoop-resourcemanager.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]

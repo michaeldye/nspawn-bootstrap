@@ -2,6 +2,7 @@
 <configuration>
   <property>
     <name>yarn.resourcemanager.hostname</name>
+    <!-- TODO: replace this hostname with alias; for now that is problematic -->
     <value>millsport.iaasbigdata.nextgen</value>
   </property>
   <property>

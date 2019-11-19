@@ -11,14 +11,12 @@ echo "Executing setup of hadoop resourcemanager $HOST.$DOMAIN"
 
 source ~admin/.bash_profile
 
-svc_name=hadoop-resourcemanager
+svc_name=hadoop-historyserver
 
 cp $SOURCE/fs/etc/systemd/system/$svc_name.service /etc/systemd/system/
 
 if [ ! -e "/etc/systemd/system/multi-user.target.wants/$svc_name.service" ]; then
   ln -s /etc/systemd/system/$svc_name.service /etc/systemd/system/multi-user.target.wants/
 fi
-
-(cd /usr/hadoop/etc/hadoop; cp yarn-site.xml-resourcemanager yarn-site.xml && rm -f ./yarn-site.xml-*)
 
 exit 0
