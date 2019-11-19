@@ -1,0 +1,20 @@
+[Unit]
+Description=Hadoop Namenode
+After=network-online.target hadoop-namenode-format.service
+Wants=network-online.target
+
+[Service]
+User=admin
+Group=admin
+ExecStart=/usr/hadoop/bin/hdfs --daemon start namenode
+ExecStop=/usr/hadoop/bin/hdfs --daemon stop namenode
+PIDFile=/tmp/hadoop-admin-namenode.pid
+KillSignal=SIGTERM
+# JVM sigterm results in exit code 143
+SuccessExitStatus=143
+#LimitNOFILE= can set open file limit here
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

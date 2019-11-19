@@ -1,0 +1,27 @@
+#!/bin/bash
+
+del_all_by_pattern() {
+  table=$1; shift
+  chain=$1; shift
+  patter=$1; shift
+
+  [[ -z "$table" ]] || \
+    [[ -z "$chain" ]] || \
+      [[ -z "$patter" ]] && {
+
+    (echo "Necessary arg unspec" >&2)
+    exit 2
+  }
+
+  sudo iptables -v -t $table --line-numbers -L $chain | grep $patter | awk '{print $1}' | sort -V -r | xargs -i -- sudo iptables -t $table -D $chain {}
+}
+
+del_all_by_pattern "filter" "INPUT" "conhole"
+del_all_by_pattern "filter" "FORWARD" "conhole"
+del_all_by_pattern "nat" "POSTROUTING" "privbridge"
+
+ip link show conhole && {
+  sudo ip link set dev conhole down
+  sudo ip addr del 172.31.0.254/20 conhole
+  sudo ip link del conhole
+}

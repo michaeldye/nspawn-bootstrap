@@ -1,0 +1,20 @@
+[Unit]
+Description=Hadoop Webapp Proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=admin
+Group=admin
+ExecStart=/usr/hadoop/bin/yarn --daemon start proxyserver
+ExecStop=/usr/hadoop/bin/yarn --daemon stop proxyserver
+PIDFile=/tmp/hadoop-admin-proxyserver.pid
+KillSignal=SIGTERM
+# JVM sigterm results in exit code 143
+SuccessExitStatus=143
+#LimitNOFILE= can set open file limit here
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

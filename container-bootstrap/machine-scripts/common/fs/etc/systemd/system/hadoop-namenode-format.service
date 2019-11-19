@@ -1,0 +1,15 @@
+[Unit]
+Description=Hadoop Namenode HDFS Format
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=!/data/namenode/current/VERSION
+
+[Service]
+User=admin
+Group=admin
+Type=oneshot
+EnvironmentFile=/home/admin/hadoop-hbase.env
+ExecStart=/bin/dash -c '/bin/echo "Y" | /usr/hadoop/bin/hdfs namenode -format'
+
+[Install]
+WantedBy=multi-user.target

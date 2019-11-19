@@ -1,0 +1,17 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+FQDN="$HOST.$DOMAIN"
+
+echo "Removing serial getty and nspawn services on $FQDN"
+
+rm -f /etc/systemd/system/getty.target.wants/serial-getty@.service
+# rm -f /etc/systemd/system/multi-user.target.wants/machines.target
+
+echo "Remaining services..."
+find /etc/systemd

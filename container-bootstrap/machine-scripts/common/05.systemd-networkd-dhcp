@@ -12,18 +12,23 @@ FQDN="$HOST.$DOMAIN"
 echo "Executing systemd networkd w/ DHCP setup operations for $FQDN"
 
 # works for bridged networking w/ DHCP and DNS on the bridge
-cat > /etc/systemd/network/host0.network <<EOF
+cat > /etc/systemd/network/99-host0.network <<EOF
 [Match]
 Name=host0
 
 [Network]
 DHCP=ipv4
+IPv6AcceptRA=no
+LinkLocalAddressing=ipv4-fallback
 Domains=$DOMAIN
 EOF
 
+# remove default files like /lib/systemd/network/80-container-host.network that are overriding ours
+rm -Rf /lib/systemd/network/*
+
 # TODO: figure out if this could be done with systemctl commands in chroot
 if [ ! -e "/etc/systemd/system/multi-user.target.wants/systemd-networkd.service" ]; then
-	ln -s /lib/systemd/system/systemd-networkd.service /etc/systemd/system/multi-user.target.wants/
+  ln -s /lib/systemd/system/systemd-networkd.service /etc/systemd/system/multi-user.target.wants/
 fi
 
 if [ ! -e "/etc/systemd/system/multi-user.target.wants/systemd-resolved.service" ]; then

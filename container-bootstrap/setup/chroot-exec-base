@@ -22,7 +22,7 @@ rm -f /etc/systemd/system/multi-user.target.wants/machines.target
 rm -f /etc/systemd/system/timers.target.wants/fstrim.timer
 
 # rely on this update operation here
-apt-get update && apt-get install -y curl
+apt-get update && apt-get install -y curl locales
 
 # read env
 [[ -f "/setup/chroot-dl-versions.env" ]] && source /setup/chroot-dl-versions.env
@@ -32,12 +32,14 @@ for p in "${TO_CACHE[@]}"; do
   apt-get -d install -y $p
 done
 
+echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && /usr/sbin/locale-gen
+
 # TODO: parallelize these and check for matching the sha sum
 
 [[ ! -f /setup/hadoop-$HADOOP_VER.tar.gz ]] && {
-  curl -l http://mirrors.ibiblio.org/apache/hadoop/common/hadoop-$HADOOP_VER/hadoop-$HADOOP_VER.tar.gz > /setup/hadoop-$HADOOP_VER.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
+  curl -l http://10.109.39.196:9010/hadoop-$HADOOP_VER.tar.gz > /setup/hadoop-$HADOOP_VER.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
 }
 
 [[ ! -f /setup/hbase-$HBASE_VER.tar.gz ]] && {
-  curl -l http://mirror.metrocast.net/apache/hbase/$HBASE_VER/hbase-$HBASE_VER-bin.tar.gz > /setup/hbase-$HBASE_VER-bin.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
+  curl -l http://10.109.39.196:9010/hbase-$HBASE_VER-bin.tar.gz > /setup/hbase-$HBASE_VER-bin.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
 }

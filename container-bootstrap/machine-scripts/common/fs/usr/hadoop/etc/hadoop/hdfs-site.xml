@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<configuration>
+  <property>
+      <name>dfs.datanode.data.dir</name>
+      <value>file:///data/datanode</value>
+  </property>
+
+  <property>
+      <name>dfs.namenode.name.dir</name>
+      <value>file:///data/namenode</value>
+  </property>
+
+  <property>
+      <name>dfs.namenode.checkpoint.dir</name>
+      <value>file:///data/namesecondary</value>
+  </property>
+
+  <property>
+      <name>dfs.namenode.rpc-bind-host</name>
+      <value>0.0.0.0</value>
+  </property>
+</configuration>

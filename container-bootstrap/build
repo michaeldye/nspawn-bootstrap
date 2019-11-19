@@ -5,7 +5,7 @@ SOURCE=$(realpath $(dirname $0))
 # made with something like this:
 #   cd container-bootstrap/machine-scripts/common/; find * -maxdepth 0 -regex '[0-9]+\..*' -type f | xargs
 # ... and then trimmed
-ENABLED_COMMON_SCRIPTS=${ENABLED_COMMON_SCRIPTS:="02.console-root-login 03.tzdata 05.systemd-networkd-dhcp 06.admin-user 08.ssh-trust"}
+ENABLED_SCRIPTS=${ENABLED_SCRIPTS:="02.console-root-login 03.tzdata 05.systemd-networkd-dhcp 06.admin-user 08.ssh-trust"}
 
 usage() {
   echo "Usage: $0 -o /var/lib/machines [-f fqdn [-b /chroot/base/dir]]|[-g generate_base_dir_name] [-p root_password] [-s ssh_trust_mount]"
@@ -145,6 +145,7 @@ DEBUG options
     chroot_base: $CHROOT_BASE
     generate_base_dir_name: $GENERATE_BASE_DIR_NAME
     root_pass: $ROOT_PASS
+    envvar ENABLED_SCRIPTS: $ENABLED_SCRIPTS
 EOF
   (>&2 echo "$dout")
 
@@ -214,7 +215,7 @@ EOF
     echo "Using debootstrap to generate image"
 
     # N.B. This can be done for foreign architechtures in two stages, see https://linux.die.net/man/8/debootstrap '--foreign'
-    if ! debootstrap --verbose --components=main,restricted,universe,multiverse --include=systemd-container --variant=minbase bionic $TEMPD http://mirrors.xmission.com/ubuntu/; then
+    if ! debootstrap --verbose --components=main,restricted,universe,multiverse --include=systemd-container --variant=minbase bionic $TEMPD http://10.109.39.196:8080/archive.ubuntu.com/ubuntu/; then
       (>&2 echo "ERROR: Failure to complete debootstrap")
       exit 2
     fi
@@ -247,10 +248,10 @@ EOF
   if [[ "$FQDN" != "" ]]; then
     echo "Copying machine scripts for $FQDN..."
 
-    cp -Rfvp $SOURCE/machine-scripts/common/* $TEMPD/setup/machine-scripts/
+    cp -RfvpL $SOURCE/machine-scripts/common/* $TEMPD/setup/machine-scripts/
 
     if ls -A $SOURCE/machine-scripts/$FQDN 2>/dev/null; then
-      cp -Rfvp $SOURCE/machine-scripts/$FQDN/. $TEMPD/setup/machine-scripts/
+      cp -RfvpL $SOURCE/machine-scripts/$FQDN/. $TEMPD/setup/machine-scripts/
     fi
 
     (cd $TEMPD/setup/machine-scripts;
@@ -258,14 +259,15 @@ EOF
       (>&2 echo "INFO: scripts to execute in chroot: $scripts")
 
       for f in $scripts; do
-        echo $ENABLED_COMMON_SCRIPTS | grep -q "$f" && {
+        # TODO: handle this better, the names may clash
+        echo $ENABLED_SCRIPTS | grep -q "$f" && {
           echo "Executing $f in $FQDN"
           if ! chroot $TEMPD /bin/bash -x /setup/machine-scripts/$f "$HOST" "$DOMAIN" "/mnt/ssh_trust"; then
             (>&2 echo "ERROR: Failure executing chroot $TEMPD /$f $HOST $DOMAIN /mnt/ssh_trust")
             exit 6
           fi
         } || {
-          echo "Skipping $f on $FQDN because it's not in envvar ENABLED_COMMON_SCRIPTS"
+          echo "Skipping $f on $FQDN because it's not in envvar ENABLED_SCRIPTS"
         }
       done)
     code=$?

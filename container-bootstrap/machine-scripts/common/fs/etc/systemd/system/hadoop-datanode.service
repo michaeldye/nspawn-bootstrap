@@ -1,0 +1,22 @@
+[Unit]
+Description=Hadoop Datanode
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=admin
+Group=admin
+# will block start from happening; TODO: figure out why Hadoop datanodes don't recover properly
+ExecStartPre=/bin/nc -v -z -w 3 -4 namenode1 8020
+ExecStart=/usr/hadoop/bin/hdfs --daemon start datanode
+ExecStop=/usr/hadoop/bin/hdfs --daemon stop datanode
+TimeoutSec=300
+PIDFile=/tmp/hadoop-admin-datanode.pid
+KillSignal=SIGTERM
+# JVM sigterm results in exit code 143
+SuccessExitStatus=143
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

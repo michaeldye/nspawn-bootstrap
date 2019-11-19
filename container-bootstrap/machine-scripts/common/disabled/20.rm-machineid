@@ -1,0 +1,13 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+echo "Removing /etc/machine-id on $FQDN"
+
+# indication to systemd that this is a new installation
+rm -f /etc/machine-id
+
+exit 0
+

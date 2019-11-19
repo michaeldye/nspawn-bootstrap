@@ -1,0 +1,16 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Installing additional tools on $FQDN"
+
+apt-get update && apt-get install -y vim net-tools sudo dnsutils iproute2 nmap tcpdump iputils-ping
+
+sed -i 's,%admin.*,%admin ALL=(ALL) NOPASSWD: ALL,' /etc/sudoers

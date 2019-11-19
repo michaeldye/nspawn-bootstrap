@@ -4,10 +4,10 @@ SOURCE=$(realpath $(dirname $0))
 
 source $SOURCE/scripts-include-pkg
 
-echo "Executing installation of openjdk, hadoop, and hbase"
+echo "Executing setup of hadoop hdfs"
 
 [[ -z "$JDK_PKG" ]] && (echo "JDK_PKG envvar unset, cannot install" >&2) && exit 1
-apt-get install -y openjdk-8-jdk-headless curl
+apt-get install -y openjdk-8-jdk-headless curl netcat-openbsd
 
 [[ -z "$HADOOP_VER" ]] && (echo "HADOOP envvar unset, cannot install" >&2) && exit 1
 tar zxf /setup/hadoop-$HADOOP_VER.tar.gz -C /usr --transform="s,hadoop-${HADOOP_VER},hadoop,"
@@ -15,15 +15,41 @@ tar zxf /setup/hadoop-$HADOOP_VER.tar.gz -C /usr --transform="s,hadoop-${HADOOP_
 [[ -z "$HBASE_VER" ]] && (echo "HBASE envvar unset, cannot install" >&2) && exit 1
 tar zxf /setup/hbase-$HBASE_VER-bin.tar.gz -C /usr --transform="s,hbase-${HBASE_VER},hbase,"
 
-
 chown -R admin:admin /usr/{hadoop,hbase}
 
 sed -i '/^export PATH=/d' ~admin/.bash_profile
-cat >> ~admin/.bash_profile <<EOF
-export HADOOP_HOME=/usr/hadoop
-export HBASE_HOME=/usr/hbase
 
-export PATH=\$HBASE_HOME/bin:\$HADOOP_HOME/bin:$PATH
+HADOOP_HOME=/usr/hadoop
+
+# used by systemd unit files too (TODO: consider using a systemd environment generator instead)
+cat >> ~admin/hadoop-hbase.env <<EOF
+JAVA_HOME=$JDK_JAVA_HOME
+HBASE_HOME=/usr/hbase
+HADOOP_HOME=$HADOOP_HOME
+HADOOP_COMMON_HOME=$HADOOP_HOME
+HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+HADOOP_YARN_HOME=$HADOOP_HOME
+HADOOP_MAPRED_HOME=$HADOOP_HOME
+HADOOP_HDFS_HOME=$HADOOP_HOME
 EOF
+
+cat >> ~admin/.bash_profile <<EOF
+set -a
+source /home/admin/hadoop-hbase.env
+set +a
+
+export PATH=\$HBASE_HOME/bin:\$HADOOP_HOME/bin:\$JAVA_HOME/bin:$PATH
+EOF
+
+# N.B. there's a lot more you can do with hadoop-env.sh than this...
+mkdir -p $HADOOP_HOME/etc/hadoop
+cat >> $HADOOP_HOME/etc/hadoop/hadoop-env.sh <<EOF
+export JAVA_HOME=$JDK_JAVA_HOME
+EOF
+
+chmod +x $HADOOP_HOME/etc/hadoop/hadoop-env.sh
+
+cp -vfa $SOURCE/fs/usr/hadoop /usr/
+chown -R admin:admin $HADOOP_HOME
 
 exit 0

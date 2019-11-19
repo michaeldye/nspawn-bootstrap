@@ -1,0 +1,19 @@
+#!/bin/bash
+
+sudo ip link show conhole 2> /dev/null || sudo ip link add conhole type bridge
+sudo ip addr show conhole | grep -q '172.13' || {
+  sudo ip addr add 172.31.0.254/20 dev conhole
+  sudo ip link set dev conhole up
+}
+
+# kind of a stupid way to manage this but it'll do for now
+sudo iptables -n -v -t filter -L INPUT | grep -q conhole || sudo iptables -I INPUT 1 -m conntrack --ctstate NEW -i conhole -j ACCEPT
+
+sudo iptables -n -v -t filter -L FORWARD | grep -q conhole || {
+  sudo iptables -I INPUT 1 -m conntrack --ctstate NEW -i conhole -j ACCEPT
+  sudo iptables -A FORWARD -i privbridge -o conhole -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  sudo iptables -A FORWARD -i conhole -o privbridge -j ACCEPT
+  sudo iptables -A FORWARD -i conhole -o conhole -j ACCEPT
+}
+
+sudo iptables -n -v -t nat -L POSTROUTING | grep -q privbridge || sudo iptables -t nat -A POSTROUTING -s 172.31.0.0/20 -o privbridge -j MASQUERADE

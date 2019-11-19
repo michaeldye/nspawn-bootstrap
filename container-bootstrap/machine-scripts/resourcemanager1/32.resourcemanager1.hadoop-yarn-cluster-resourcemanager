@@ -1,0 +1,22 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+
+echo "Executing setup of hadoop resourcemanager $HOST.$DOMAIN"
+
+source ~admin/.bash_profile
+
+cp $SOURCE/fs/etc/systemd/system/hadoop-resourcemanager.service /etc/systemd/system/
+
+if [ ! -e "/etc/systemd/system/multi-user.target.wants/hadoop-resourcemanager.service" ]; then
+  ln -s /etc/systemd/system/hadoop-resourcemanager.service /etc/systemd/system/multi-user.target.wants/
+fi
+
+(cd /usr/hadoop/etc/hadoop; cp yarn-site.xml-resourcemanager yarn-site.xml && rm -f ./yarn-site.xml-*)
+
+exit 0

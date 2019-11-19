@@ -8,13 +8,15 @@ GENDIR="$(realpath $BASEDIR/../generated)"
 SSH_CONFIG_FILE=$GENDIR/ssh-config
 
 ACT=$1; shift
-MAC=$2; shift
-IP=$3; shift
-HOST=$4; shift
+MAC=$1; shift
+IP=$1; shift
+HOST=$1; shift
 
-[[ "$ACT" == "add" ]] && [[ -f "$SSH_CONFIG_FILE" ]] && {
+[[ "$ACT" == "add" ]] || [[ "$ACT" == "old" ]] && [[ -f "$SSH_CONFIG_FILE" ]] && {
   # TODO: fix so that it uses the Host (hostname) line to match; this will help us endure address changes
-  sed -i "s/Hostname $HOST\(.*\)/Hostname $3/g" $SSH_CONFIG_FILE
+  cat $SSH_CONFIG_FILE | grep -A2 -q "$HOST" | grep HostKeyAlias || {
+    sed -i "s/Hostname $HOST\(.*\)/\0\n  HostKeyAlias $IP/g" $SSH_CONFIG_FILE
+  }
 }
 
 exit 0

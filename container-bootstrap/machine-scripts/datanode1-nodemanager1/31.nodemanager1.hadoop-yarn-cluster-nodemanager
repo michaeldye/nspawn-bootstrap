@@ -1,0 +1,24 @@
+#!/bin/bash -e
+
+SOURCE=$(realpath $(dirname $0))
+
+source $SOURCE/scripts-include-pkg
+
+HOST=$1; shift
+DOMAIN=$1; shift
+
+echo "Executing setup of hadoop yarn nodemanager on $HOST.$DOMAIN"
+
+source ~admin/.bash_profile
+
+svc=hadoop-nodemanager.service
+
+cp $SOURCE/fs/etc/systemd/system/$svc /etc/systemd/system/
+
+if [ ! -e "/etc/systemd/system/multi-user.target.wants/$svc" ]; then
+  ln -s /etc/systemd/system/$svc /etc/systemd/system/multi-user.target.wants/
+fi
+
+(cd /usr/hadoop/etc/hadoop; cp yarn-site.xml-nodemanager yarn-site.xml && rm -f ./yarn-site.xml-*)
+
+exit 0
