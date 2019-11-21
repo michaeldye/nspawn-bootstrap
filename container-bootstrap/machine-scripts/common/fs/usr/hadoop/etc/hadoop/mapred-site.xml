@@ -4,10 +4,14 @@
     <name>fs.default.name</name>
     <value>hdfs://namenode1</value>
   </property>
+  <!-- TODO: replace these hostnames with alias; for now that is problematic -->
   <property>
-    <!-- TODO: replace this hostname with alias; for now that is problematic -->
     <name>mapreduce.jobhistory.address</name>
     <value>millsport.iaasbigdata.nextgen:10020</value>
+  </property>
+  <property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>millsport.iaasbigdata.nextgen:19888</value>
   </property>
   <property>
     <name>mapreduce.framework.name</name>

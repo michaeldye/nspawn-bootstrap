@@ -1,5 +1,5 @@
 [Unit]
-Description=Hadoop Resourcemanager
+Description=HDFS Zookeeper Node
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 User=admin
 Group=admin
 EnvironmentFile=/home/admin/hadoop-hbase.env
-ExecStart=/usr/hadoop/bin/yarn resourcemanager
+ExecStart=/usr/hbase/bin/hbase zookeeper
 Restart=always
 RestartSec=20
 

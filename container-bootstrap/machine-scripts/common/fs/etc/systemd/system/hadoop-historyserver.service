@@ -6,13 +6,8 @@ Wants=network-online.target hadoop-resourcemanager.service
 [Service]
 User=admin
 Group=admin
-ExecStart=/usr/hadoop/bin/mapred --daemon start historyserver
-ExecStop=/usr/hadoop/bin/mapred --daemon stop historyserver
-PIDFile=/tmp/hadoop-admin-historyserver.pid
-KillSignal=SIGTERM
-# JVM sigterm results in exit code 143
-SuccessExitStatus=143
-#LimitNOFILE= can set open file limit here
+EnvironmentFile=/home/admin/hadoop-hbase.env
+ExecStart=/usr/hadoop/bin/mapred historyserver start
 Restart=always
 RestartSec=20
 

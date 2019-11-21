@@ -7,7 +7,7 @@ source $SOURCE/scripts-include-pkg
 HOST=$1; shift
 DOMAIN=$1; shift
 
-echo "Executing setup of hadoop resourcemanager $HOST.$DOMAIN"
+echo "Executing setup of Hadoop YARN Resourcemanager $HOST.$DOMAIN"
 
 source ~admin/.bash_profile
 

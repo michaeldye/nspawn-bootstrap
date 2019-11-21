@@ -1,4 +1,6 @@
 
+sudo rm /var/lib/misc/dnsmasq.leases
+
 sudo dnsmasq --interface=conhole --listen-address=172.31.0.254 \
   --bind-interfaces --bogus-priv \
   --domain-needed --domain=iaasbigdata.nextgen \
@@ -12,10 +14,17 @@ sudo dnsmasq --interface=conhole --listen-address=172.31.0.254 \
   --cname=nodemanager2.iaasbigdata.nextgen,newpest.iaasbigdata.nextgen \
   --cname=datanode3.iaasbigdata.nextgen,tekitomura.iaasbigdata.nextgen \
   --cname=nodemanager3.iaasbigdata.nextgen,tekitomura.iaasbigdata.nextgen \
+  --cname=primarymaster.iaasbigdata.nextgen,mukoprospect.iaasbigdata.nextgen \
+  --cname=regionserver2.iaasbigdata.nextgen,ohridisles.iaasbigdata.nextgen \
+  --cname=regionserver3.iaasbigdata.nextgen,glimmerfive.iaasbigdata.nextgen \
+  --cname=thrift2.iaasbigdata.nextgen,pancheva.iaasbigdata.nextgen \
   -q -d &
   
-
+TODO: need to put cnames in ssh config too or that sshing doesn't work
 
 (find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -and -type l -printf "%P\n" | xargs -i basename {} ".$CON_DOMAIN" | xargs)
+
+
+
 
 

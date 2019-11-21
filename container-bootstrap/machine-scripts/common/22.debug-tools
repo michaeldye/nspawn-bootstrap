@@ -11,6 +11,8 @@ FQDN="$HOST.$DOMAIN"
 
 echo "Installing additional tools on $FQDN"
 
-apt-get update && apt-get install -y vim net-tools sudo dnsutils iproute2 nmap tcpdump iputils-ping
+apt-get update && apt-get install -y vim net-tools sudo dnsutils iproute2 nmap tcpdump iputils-ping less rsync
 
 sed -i 's,%admin.*,%admin ALL=(ALL) NOPASSWD: ALL,' /etc/sudoers
+
+sed -i 's,10.109.39.196:8080/archive.ubuntu.com,mirrors.xmission.com,' /etc/apt/sources.list

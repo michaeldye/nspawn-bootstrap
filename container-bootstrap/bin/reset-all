@@ -12,7 +12,7 @@ function kill_machines() {
   exit 1
 }
 
-CON_HOSTS=$(find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -and -type l -printf "%P\n" | xargs -i basename {} ".$CON_DOMAIN" | xargs)
+CON_HOSTS=$(find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -printf "%P\n" | xargs -i basename {} ".$CON_DOMAIN" | xargs)
 
 [[ -z "$CON_HOSTS" ]] && {
   (echo "Envvar CON_HOSTS not defined and must be" >&2)
@@ -44,7 +44,7 @@ while true; do
   }
 
   ct=$((ct+1))
-  machines=$(sudo machinectl list --no-pager --no-legend)
+  machines=$(machinectl list -o json | jq -r '.[] | .machine')
 
   for c in $CON_HOSTS; do
     # continue 2 will continue outer level loop

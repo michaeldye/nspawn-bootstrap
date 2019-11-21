@@ -14,9 +14,6 @@ source ~admin/.bash_profile
 cp $SOURCE/fs/etc/systemd/system/hadoop-namenode.service /etc/systemd/system/
 cp $SOURCE/fs/etc/systemd/system/hadoop-namenode-format.service /etc/systemd/system/
 
-FL=/namenode-needs-format.flag
-touch $FL && chown admin:admin $FL
-
 if [ ! -e "/etc/systemd/system/multi-user.target.wants/hadoop-namenode.service" ]; then
   ln -s /etc/systemd/system/hadoop-namenode.service /etc/systemd/system/multi-user.target.wants/
 fi

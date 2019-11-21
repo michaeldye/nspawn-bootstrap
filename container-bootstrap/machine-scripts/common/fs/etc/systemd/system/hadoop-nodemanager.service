@@ -6,13 +6,8 @@ Wants=network-online.target
 [Service]
 User=admin
 Group=admin
-ExecStart=/usr/hadoop/bin/yarn --daemon start nodemanager
-ExecStop=/usr/hadoop/bin/yarn --daemon stop nodemanager
-PIDFile=/tmp/hadoop-admin-nodemanager.pid
-KillSignal=SIGTERM
-# JVM sigterm results in exit code 143
-SuccessExitStatus=143
-#LimitNOFILE= can set open file limit here
+EnvironmentFile=/home/admin/hadoop-hbase.env
+ExecStart=/usr/hadoop/bin/yarn nodemanager
 Restart=always
 RestartSec=20
 

@@ -1,0 +1,15 @@
+[Unit]
+Description=HBase Primary Master
+After=network-online.target hbase-znode.service
+Wants=network-online.target hbase-znode.service
+
+[Service]
+User=admin
+Group=admin
+EnvironmentFile=/home/admin/hadoop-hbase.env
+ExecStart=/usr/hbase/bin/hbase master start
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target
