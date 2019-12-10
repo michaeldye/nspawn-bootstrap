@@ -1,5 +1,5 @@
 [Unit]
-Description=HDFS Zookeeper Node
+Description=HBase Zookeeper Node
 After=network-online.target
 Wants=network-online.target
 
@@ -7,6 +7,8 @@ Wants=network-online.target
 User=admin
 Group=admin
 EnvironmentFile=/home/admin/hadoop-hbase.env
+# block until names resolve
+ExecStartPre=/bin/bash -c "echo 'primarymaster regionserver2 regionserver3' | tr ' ' '\n' | xargs /usr/bin/systemd-resolve"
 ExecStart=/usr/hbase/bin/hbase zookeeper
 Restart=always
 RestartSec=20

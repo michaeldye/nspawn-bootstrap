@@ -25,6 +25,7 @@ TODO: need to put cnames in ssh config too or that sshing doesn't work
 (find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -and -type l -printf "%P\n" | xargs -i basename {} ".$CON_DOMAIN" | xargs)
 
 
-
-
-
+------
+TODO: block start of regionserver, primarymaster in hbase until znodes are all up and report quorum (stupid, but necessary)
+  - block all znodes until names can be resolved
+  - add thrift2 server to installation

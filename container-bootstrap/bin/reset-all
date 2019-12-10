@@ -1,4 +1,11 @@
-#!/bin/bash -x
+#!/bin/bash
+
+#
+# packages needed in debian buster:
+#
+# systemd-container uuid-runtime debootstrap dnsmasq time sudo
+#
+#
 
 function kill_machines() {
   verb=$1; shift
@@ -6,13 +13,21 @@ function kill_machines() {
   machinectl list -o json | jq -r '.[] | .machine' | xargs -P0 -n1 -i sudo machinectl $verb {};
 }
 
+function rem_state() {
+  local dom=$1; shift
+
+  rm /etc/systemd/nspawn/*.${dom}.nspawn
+
+  echo "Removing all in /var/lib/machines with domain $dom"
+  sudo find /var/lib/machines -maxdepth 1 -iname "*iaasbigdata.nextgen" -exec rm -Rf {} +
+}
 
 [[ -z "$CON_DOMAIN" ]] && {
   (echo "Envvar CON_DOMAIN not defined and must be" >&2)
   exit 1
 }
 
-export TEMPORARY_CON_DIR=${TEMPORARY_CON_DIR:=/tmp}
+export TEMPORARY_CON_DIR=${TEMPORARY_CON_DIR:=/home/mdye/tmp}
 CON_HOSTS=$(find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -printf "%P\n" | xargs -i basename {} ".$CON_DOMAIN" | xargs)
 
 [[ -z "$CON_HOSTS" ]] && {
@@ -55,23 +70,38 @@ while true; do
   break
 done
 
-mkdir -p ./container-bootstrap/machines
-sudo rm -Rf ./container-bootstrap/machines/*.*
+[[ -d $TEMPORARY_CON_DIR/nspawn-build/base ]] || {
+  mkdir -p $TEMPORARY_CON_DIR/nspawn-build
+  sudo /bin/bash -c "(export TEMPDIR=$TEMPORARY_CON_DIR; ./container-bootstrap/build -y -o $TEMPORARY_CON_DIR/nspawn-build -g base -p cheese |& tee $TEMPORARY_CON_DIR/nspawn-build/base-imaging.out)" || exit 4
+  rem_state $CON_DOMAIN
+  echo "Removed container state b/c base has changed"
+}
 
-[[ -d ./container-bootstrap/machines/base ]] || {
-  sudo /bin/bash -c "(export TEMPDIR=$TEMPORARY_CON_DIR; rm -Rf ./container-bootstrap/machines/*; ./container-bootstrap/build -y -o ./container-bootstrap/machines -g base -p cheese |& tee /tmp/base.out)"
+[[ ! -z "$REM_CON_STATE" ]] && {
+  rem_state $CON_DOMAIN || exit 5
+} || {
+  echo "REM_CON_STATE not set so leaving container content in-place"
 }
 
 export ENABLED_SCRIPTS=$(cd container-bootstrap/machine-scripts/; find -L . -type f -regex '.*[0-9]+\..*' -not -path "./common/disabled/*" -printf '%f\0' | xargs -0)
 
 start=$(date -u +%s)
-echo $CON_HOSTS | sed 's, ,\n,g' | xargs -n1 -P0 -i -- sudo --preserve-env=ENABLED_SCRIPTS /bin/bash -c "(export TEMPDIR=$TEMPORARY_CON_DIR; ./container-bootstrap/build -f {}.$CON_DOMAIN -y -o ./container-bootstrap/machines -b ./container-bootstrap/machines/base -p cheese -s ./SSH-keys-and-certs/generated |& tee ./container-bootstrap/machines/{}-prov.out; echo 'finished {}')"
+echo $CON_HOSTS | sed 's, ,\n,g' | xargs -n1 -P0 -i -- sudo --preserve-env=ENABLED_SCRIPTS /bin/bash -c "(export TEMPDIR=$TEMPORARY_CON_DIR; ./container-bootstrap/build -f {}.$CON_DOMAIN -y -o /var/lib/machines -b $TEMPORARY_CON_DIR/nspawn-build/base -p cheese -s ./SSH-keys-and-certs/generated |& tee ./container-bootstrap/machines/{}-prov.out; echo 'Finished provisioning {}')"
 
 end=$(date -u +%s)
 echo "** Total build time: $(( end-start )) seconds"
 
-# TODO: fix by making a drop-in for systemd and then starting the containers
-echo $CON_HOSTS | sed 's, ,\n,g' | xargs -n1 -P0 -i sudo /bin/bash -c "systemd-nspawn --network-bridge=conhole --quiet --register=yes --boot --directory ./container-bootstrap/machines/{}.$CON_DOMAIN > ./container-bootstrap/machines/{}-init-start.out 2>&1 & disown %1"
+# TODO: ensure user has write access or this will bail
+for h in $CON_HOSTS; do
+  cat > /etc/systemd/nspawn/$h.$CON_DOMAIN.nspawn <<EOF
+[Network]
+VirtualEthernet=yes
+Bridge=conhole
+EOF
+done
+
+# assumed you've already done `systemd enable machines.target`
+echo $CON_HOSTS | sed 's, ,\n,g' | xargs -n1 -P0 -i sudo /bin/bash -c "systemctl start systemd-nspawn@{}.$CON_DOMAIN"
 
 echo ""
 echo "Finished."

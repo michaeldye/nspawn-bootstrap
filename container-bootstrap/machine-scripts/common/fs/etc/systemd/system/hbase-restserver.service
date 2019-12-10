@@ -1,0 +1,15 @@
+[Unit]
+Description=HBase Region Server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=admin
+Group=admin
+EnvironmentFile=/home/admin/hadoop-hbase.env
+ExecStart=/usr/hbase/bin/hbase rest start
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

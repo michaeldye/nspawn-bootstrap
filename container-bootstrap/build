@@ -145,8 +145,8 @@ DEBUG options
     chroot_base: $CHROOT_BASE
     generate_base_dir_name: $GENERATE_BASE_DIR_NAME
     root_pass: $ROOT_PASS
-    envvar ENABLED_SCRIPTS: $ENABLED_SCRIPTS
 EOF
+#    envvar ENABLED_SCRIPTS: $ENABLED_SCRIPTS
   (>&2 echo "$dout")
 
   # illegal combinations
@@ -278,7 +278,7 @@ EOF
   if [[ "$code" == 0 ]]; then
     (>&2 echo -e "***\nOperations completed sucessfully")
     [[ ! -z "$FQDN" ]] && rm -Rf $TEMPD/setup
-    mv $TEMPD $OUTDIR
+    mv $TEMPD $OUTDIR || return 2
   else
     (>&2 echo -e "***\nOperations failed; code: $code")
   fi
@@ -334,4 +334,4 @@ case "$1" in
 esac
 done
 
-time provision "$YES" "$TEMP" "$FQDN" "$SSH_TRUST_MOUNT" "$OUTDIR_BASE" "$CHROOT_BASE" "$GENERATE_BASE_DIR_NAME" "$ROOT_PASS"
+time provision "$YES" "$TEMP" "$FQDN" "$SSH_TRUST_MOUNT" "$OUTDIR_BASE" "$CHROOT_BASE" "$GENERATE_BASE_DIR_NAME" "$ROOT_PASS"; exit $?
