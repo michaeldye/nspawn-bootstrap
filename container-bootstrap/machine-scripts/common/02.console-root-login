@@ -1,12 +1,11 @@
 #!/bin/bash -e
 
-SOURCE=$(realpath $(dirname $0))
-
-source $SOURCE/scripts-include-pkg
-
 HOST=$1; shift
 DOMAIN=$1; shift
-SSH_MOUNT=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
 
 FQDN="$HOST.$DOMAIN"
 

@@ -1,0 +1,22 @@
+function setup_env() {
+  local env_file=$1; shift
+  local java_home=$1; shift
+
+  # N.B. there's a lot more you can do with hadoop-env.sh than this...
+  mkdir -p $(dirname $env file)
+  cat >> $env_file <<EOF
+export JAVA_HOME=$java_home
+EOF
+
+  chmod +x $env_file
+  echo "$env_file"
+}
+
+function cp_cfg() {
+  local src_dir=$1; shift
+  local dst_dir=$1; shift
+
+  cp -vfa $src_dir $(dirname $dst_dir)
+  chown -R admin:admin $dst_dir
+}
+

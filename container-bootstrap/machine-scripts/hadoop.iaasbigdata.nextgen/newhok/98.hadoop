@@ -1,0 +1,43 @@
+#!/bin/bash -ex
+
+HOST=$1; shift
+DOMAIN=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
+source $COMMON_DIR/util/env-setup || exit 7
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing setup of hadoop services in $FQDN"
+
+# TODO: deduplicate
+[[ -z "$HADOOP_VER" ]] && (echo "HADOOP envvar unset, cannot install" >&2) && exit 1
+tar zxf /setup/hadoop-$HADOOP_VER.tar.gz -C /usr --transform="s,hadoop-${HADOOP_VER},hadoop," || exit 2
+
+export HADOOP_HOME=/usr/hadoop
+
+# used by systemd unit files too (TODO: consider using a systemd environment generator instead)
+cat >> ~admin/hadoop.env <<EOF
+JAVA_HOME=$JDK_JAVA_HOME
+HADOOP_HOME=$HADOOP_HOME
+HADOOP_COMMON_HOME=$HADOOP_HOME
+HADOOP_CONF_DIR=$HADOOP_HOME/etc/hadoop
+HADOOP_YARN_HOME=$HADOOP_HOME
+HADOOP_MAPRED_HOME=$HADOOP_HOME
+HADOOP_HDFS_HOME=$HADOOP_HOME
+EOF
+
+cat >> ~admin/.bash_profile <<EOF
+set -a
+source /home/admin/hadoop.env
+set +a
+
+export PATH=\$HADOOP_HOME/bin:\$PATH
+EOF
+
+setup_env $HADOOP_HOME/etc/hadoop/hadoop-env.sh $JDK_JAVA_HOME
+cp_cfg $COMMON_DIR/fs/usr/hadoop $HADOOP_HOME
+
+exit 0

@@ -1,0 +1,49 @@
+#!/bin/bash -e
+
+HOST=$1; shift
+DOMAIN=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
+source $COMMON_DIR/util/env-setup || exit 7
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing setup of HBase in $FQDN"
+
+[[ -z "$HBASE_VER" ]] && (echo "HBASE envvar unset, cannot install" >&2) && exit 1
+tar zxf /setup/hbase-$HBASE_VER-bin.tar.gz -C /usr --transform="s,hbase-${HBASE_VER},hbase," || exit 2
+
+export HBASE_HOME=/usr/hbase
+HBASE_MANAGES_ZK=no
+
+# this is usually in /tmp (see https://github.com/apache/hbase/blob/master/bin/hbase-daemon.sh) but we'd like it to be named the same thing on all systems regardless of cmd
+HBASE_ZNODE_FILE=$HBASE_HOME/znode
+
+# used by systemd unit files too (TODO: consider using a systemd environment generator instead)
+cat >> ~admin/hbase.env <<EOF
+JAVA_HOME=$JDK_JAVA_HOME
+HBASE_HOME=$HBASE_HOME
+EOF
+
+cat >> ~admin/.bash_profile <<EOF
+set -a
+source /home/admin/hbase.env
+set +a
+
+export PATH=\$HBASE_HOME/bin:\$PATH
+EOF
+
+created=$(setup_env $HBASE_HOME/conf/hbase-env.sh $JDK_JAVA_HOME)
+echo "export HBASE_MANAGES_ZK=$HBASE_MANAGES_ZK" >> $created
+echo "export HBASE_ZNODE_FILE=$HBASE_ZNODE_FILE" >> $created
+
+touch $HBASE_ZNODE_FILE
+cp_cfg $COMMON_DIR/fs/usr/hbase /usr/$HBASE_HOME
+
+# do overwrites and stuff; this is what requires that we install hadoop packages, it also requires that we've sourced the hadoop env
+source ~admin/.bash_profile
+bash -x $COMMON_DIR/util/hadoop-lib-overwrite.bash
+
+exit 0

@@ -7,10 +7,22 @@
 #
 #
 
-function kill_machines() {
-  verb=$1; shift
+function list_machines_by_domain() {
+  local domain=$1; shift
 
-  machinectl list -o json | jq -r '.[] | .machine' | xargs -P0 -n1 -i sudo machinectl $verb {};
+  machinectl list -o json | jq -r '.[] | .machine' | grep $domain | xargs
+}
+
+function kill_machines() {
+  local verb=$1; shift
+  local domain=$1; shift
+  local machines=$@;
+
+  running=$(list_machines_by_domain $domain)
+
+  for m in $machines; do
+    echo "$running" | grep -q $m && sudo machinectl $verb "$m.$domain"
+  done
 }
 
 function rem_state() {
@@ -19,7 +31,20 @@ function rem_state() {
   rm /etc/systemd/nspawn/*.${dom}.nspawn
 
   echo "Removing all in /var/lib/machines with domain $dom"
-  sudo find /var/lib/machines -maxdepth 1 -iname "*iaasbigdata.nextgen" -exec rm -Rf {} +
+  sudo find /var/lib/machines -maxdepth 1 -iname "*$dom" -exec rm -Rf {} +
+}
+
+function host_last() {
+  local h=$1; shift
+  local list=$@;
+
+  echo $list | grep -q $h && {
+    hh=$(echo $list | xargs -n1 | grep $h)
+    min=$(echo $list | xargs -n1 | grep -v $h | xargs)
+    list="$min $hh"
+  }
+
+  echo "$list"
 }
 
 [[ -z "$CON_DOMAIN" ]] && {
@@ -28,7 +53,19 @@ function rem_state() {
 }
 
 export TEMPORARY_CON_DIR=${TEMPORARY_CON_DIR:=/home/mdye/tmp}
-CON_HOSTS=$(find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -printf "%P\n" | xargs -i basename {} ".$CON_DOMAIN" | xargs)
+
+#TODO: fix this silly business
+CON_HOSTS=$(cd ./container-bootstrap/machine-scripts/$CON_DOMAIN; find * -maxdepth 0 | xargs)
+CON_HOSTS=$(host_last newhok $CON_HOSTS)
+CON_HOSTS=$(host_last mukoprospect $CON_HOSTS)
+
+# TODO: hook into bridge creation
+BRIDGE=$(echo $CON_DOMAIN | cut -d. -f1)
+
+sudo ip link show | grep -q $BRIDGE || {
+  echo "$BRIDGE does not exist, make sure to create it and start dnsmasq on it" >&2
+  exit 4
+}
 
 [[ -z "$CON_HOSTS" ]] && {
   (echo "Envvar CON_HOSTS not defined and must be" >&2)
@@ -45,22 +82,22 @@ CON_HOSTS=$(find ./container-bootstrap/machine-scripts -iname "*.$CON_DOMAIN" -p
   exit 1
 }
 
-echo "Waiting for termination of all containers..."
+echo "Waiting for termination of containers in $CON_DOMAIN..."
 
 ct=0
 while true; do
   sleep 1
   ((ct == 0)) || ( ((ct % 10 == 0)) && ((ct > 10)) ) && {
-    kill_machines terminate
+    kill_machines terminate $CON_DOMAIN $CON_HOSTS
   } || {
     ((ct > 200)) && {
-      echo "Unable to stop all machines"
+      echo "Unable to stop machines in $CON_DOMAIN"
       exit 4
     }
   }
 
   ct=$((ct+1))
-  machines=$(machinectl list -o json | jq -r '.[] | .machine')
+  machines=$(list_machines_by_domain $CON_DOMAIN)
 
   for c in $CON_HOSTS; do
     # continue 2 will continue outer level loop
@@ -83,7 +120,7 @@ done
   echo "REM_CON_STATE not set so leaving container content in-place"
 }
 
-export ENABLED_SCRIPTS=$(cd container-bootstrap/machine-scripts/; find -L . -type f -regex '.*[0-9]+\..*' -not -path "./common/disabled/*" -printf '%f\0' | xargs -0)
+export ENABLED_SCRIPTS=$(cd ./container-bootstrap; find -L * -regextype posix-egrep -regex ".*[0-9]+\..*" -and -executable -and -not -regex '.*disabled/.*' -exec basename -z {} \; -exec echo '' {} \; | sort -k1n | awk '{print $1}' | uniq | xargs)
 
 start=$(date -u +%s)
 echo $CON_HOSTS | sed 's, ,\n,g' | xargs -n1 -P0 -i -- sudo --preserve-env=ENABLED_SCRIPTS /bin/bash -c "(export TEMPDIR=$TEMPORARY_CON_DIR; ./container-bootstrap/build -f {}.$CON_DOMAIN -y -o /var/lib/machines -b $TEMPORARY_CON_DIR/nspawn-build/base -p cheese -s ./SSH-keys-and-certs/generated |& tee ./container-bootstrap/machines/{}-prov.out; echo 'Finished provisioning {}')"
@@ -96,7 +133,7 @@ for h in $CON_HOSTS; do
   cat > /etc/systemd/nspawn/$h.$CON_DOMAIN.nspawn <<EOF
 [Network]
 VirtualEthernet=yes
-Bridge=conhole
+Bridge=$BRIDGE
 EOF
 done
 

@@ -8,7 +8,7 @@ ConditionPathExists=!/data/namenode/current/VERSION
 User=admin
 Group=admin
 Type=oneshot
-EnvironmentFile=/home/admin/hadoop-hbase.env
+EnvironmentFile=/home/admin/hadoop.env
 ExecStart=/bin/dash -c '/bin/echo "Y" | /usr/hadoop/bin/hdfs namenode -format'
 
 [Install]

@@ -1,0 +1,22 @@
+#!/bin/bash -e
+
+HOST=$1; shift
+DOMAIN=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
+
+echo "Executing setup of Hadoop YARN Resourcemanager $HOST.$DOMAIN"
+
+source ~admin/.bash_profile
+
+svc_name=hadoop-historyserver
+
+cp $COMMON_DIR/fs/etc/systemd/system/$svc_name.service /etc/systemd/system/
+
+if [ ! -e "/etc/systemd/system/multi-user.target.wants/$svc_name.service" ]; then
+  ln -s /etc/systemd/system/$svc_name.service /etc/systemd/system/multi-user.target.wants/
+fi
+
+exit 0

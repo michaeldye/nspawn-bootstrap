@@ -137,9 +137,9 @@ provision() {
 
 read -r -d '' dout <<EOF
 DEBUG options
+    fqdn: $FQDN
     yes: $YES
     tempd: $TEMPD
-    fqdn: $FQDN
     ssh_trust_mount: $SSH_TRUST_MOUNT
     outdir_base: $OUTDIR_BASE
     chroot_base: $CHROOT_BASE
@@ -248,27 +248,49 @@ EOF
   if [[ "$FQDN" != "" ]]; then
     echo "Copying machine scripts for $FQDN..."
 
-    cp -RfvpL $SOURCE/machine-scripts/common/* $TEMPD/setup/machine-scripts/
+    # determines the common destination passed to each setup script below
+    cp -RfvpL $SOURCE/machine-scripts/common $TEMPD/setup/machine-scripts/
 
-    if ls -A $SOURCE/machine-scripts/$FQDN 2>/dev/null; then
-      cp -RfvpL $SOURCE/machine-scripts/$FQDN/. $TEMPD/setup/machine-scripts/
-    fi
+    [[ -d $SOURCE/machine-scripts/$DOMAIN ]] && {
+      # may run many times b/c we're lazy so use rsync to get noop on subsequent calls
+      rsync -avzL --delete-after $SOURCE/machine-scripts/$DOMAIN $TEMPD/setup/machine-scripts/
+    } || {
+      echo "Warning: No machine scripts found for $SOURCE/machine-scripts/$DOMAIN"
+    }
 
     (cd $TEMPD/setup/machine-scripts;
-      scripts=$(find * -maxdepth 1 -type f | grep -P '^\d+\..*' | sort -t '.' -k1n)
-      (>&2 echo "INFO: scripts to execute in chroot: $scripts")
 
-      for f in $scripts; do
-        # TODO: handle this better, the names may clash
-        echo $ENABLED_SCRIPTS | grep -q "$f" && {
-          echo "Executing $f in $FQDN"
-          if ! chroot $TEMPD /bin/bash -x /setup/machine-scripts/$f "$HOST" "$DOMAIN" "/mnt/ssh_trust"; then
-            (>&2 echo "ERROR: Failure executing chroot $TEMPD /$f $HOST $DOMAIN /mnt/ssh_trust")
-            exit 6
-          fi
-        } || {
-          echo "Skipping $f on $FQDN because it's not in envvar ENABLED_SCRIPTS"
+      # these are all scripts, filtered in the loop before
+      scripts=$(find -L * -regextype posix-egrep -regex ".*[0-9]+\..*" -and -executable -and -not -regex '.*disabled/.*' -exec basename -z {} \; -exec echo '' {} \; | sort -k1n | awk '{print $2}' | xargs)
+      (>&2 echo "INFO: scripts to execute in $TEMPD/setup/machine-scripts: $scripts")
+
+      # scripts are full paths ordered by filename
+      for ff in $scripts; do
+        local name=$(basename $ff)
+        local chrootedpath=/setup/machine-scripts/$ff
+
+        # need to skip this script under a number of conditions:
+        # 1. not in ENABLED_SCRIPTS
+        # 2. not from either dir "common" -or- dir $DOMAIN/$HOST
+
+        echo $ENABLED_SCRIPTS | grep -q "$name" || {
+          echo "INFO: Skipping $chrootedpath on $FQDN because it's not in envvar ENABLED_SCRIPTS"
+          continue
         }
+
+        echo $ff | grep -qP "$DOMAIN/$HOST|common" || {
+          #echo "DEBUG: Skipping $ff on $FQDN because not in host/domain parent dirs or 'common'"
+          continue
+        }
+
+        # run script
+        echo "Executing $chrootedpath in $FQDN chroot"
+
+        chroot $TEMPD /bin/bash -x $chrootedpath "$HOST" "$DOMAIN" /mnt/ssh_trust /setup/machine-scripts/common || {
+          (>&2 echo "ERROR: Failure executing chroot $TEMPD $chrootedpath $HOST $DOMAIN /mnt/ssh_trust")
+          exit 6
+        }
+
       done)
     code=$?
   fi

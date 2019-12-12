@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 User=admin
 Group=admin
-EnvironmentFile=/home/admin/hadoop-hbase.env
+EnvironmentFile=/home/admin/hadoop.env
 ExecStart=/usr/hadoop/bin/yarn resourcemanager
 Restart=always
 RestartSec=20

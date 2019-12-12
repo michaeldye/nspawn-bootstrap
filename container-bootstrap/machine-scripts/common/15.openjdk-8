@@ -1,0 +1,24 @@
+#!/bin/bash -ex
+
+HOST=$1; shift
+DOMAIN=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing setup of Java 8 in $FQDN"
+
+[[ -z "$JDK_PKG" ]] && (echo "JDK_PKG envvar unset, cannot install" >&2) && exit 1
+apt-get install -y openjdk-8-jdk-headless
+
+cat >> ~admin/.bash_profile <<EOF
+export JAVA_HOME=$JDK_JAVA_HOME
+
+export PATH=\$JAVA_HOME/bin:\$PATH
+EOF
+
+echo "Finished setting up Java 8"
+exit 0

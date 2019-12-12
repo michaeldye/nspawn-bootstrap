@@ -1,0 +1,22 @@
+#!/bin/bash -e
+
+HOST=$1; shift
+DOMAIN=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
+
+echo "Executing setup of HBase Zookeeper Node on $HOST.$DOMAIN"
+
+source ~admin/.bash_profile
+
+svc=hbase-znode.service
+
+cp $COMMON_DIR/fs/etc/systemd/system/$svc /etc/systemd/system/
+
+if [ ! -e "/etc/systemd/system/multi-user.target.wants/$svc" ]; then
+  ln -s /etc/systemd/system/$svc /etc/systemd/system/multi-user.target.wants/
+fi
+
+exit 0

@@ -1,5 +1,17 @@
 #!/bin/bash -ex
 
+function write_to_setup() {
+  local file=$1; shift
+  local urlbase=$1; shift
+
+  local dest=/setup/$file
+
+  [[ -f $dest ]] && return 0
+
+  local url=$urlbase/$file
+  curl -l $url > $dest || return 6
+}
+
 ROOT_PASS=$1; shift
 
 source /root/.bash_profile
@@ -34,12 +46,10 @@ done
 
 echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && /usr/sbin/locale-gen
 
-# TODO: parallelize these and check for matching the sha sum
+local_cache_url='http://10.109.39.196:9010'
 
-[[ ! -f /setup/hadoop-$HADOOP_VER.tar.gz ]] && {
-  curl -l http://10.109.39.196:9010/hadoop-$HADOOP_VER.tar.gz > /setup/hadoop-$HADOOP_VER.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
-}
-
-[[ ! -f /setup/hbase-$HBASE_VER.tar.gz ]] && {
-  curl -l http://10.109.39.196:9010/hbase-$HBASE_VER-bin.tar.gz > /setup/hbase-$HBASE_VER-bin.tar.gz || ((echo "Unable to fetch HADOOP" >&2) && exit 1)
-}
+# TODO: check for matching sha sum
+write_to_setup $local_cache_url "hadoop-$HADOOP_VER.tar.gz" ||  ((echo "Unable to fetch Hadoop distribution" >&2) && exit 1) &
+write_to_setup $local_cache_url "hbase-$HBASE_VER.tar.gz" ||  ((echo "Unable to fetch HBase distribution" >&2) && exit 1) &
+write_to_setup $local_cache_url "kafka_$KAFKA_VER.tgz" ||  ((echo "Unable to fetch Kafka distribution" >&2) && exit 1) &
+write_to_setup $local_cache_url "apache-zookeeper-$ZOOKEEPER_VER-bin.tar.gz" ||  ((echo "Unable to fetch Zookeeper distribution" >&2) && exit 1) &

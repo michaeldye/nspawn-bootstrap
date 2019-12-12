@@ -1,0 +1,17 @@
+[Unit]
+Description=Kafka Zookeeper Node
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=admin
+Group=admin
+EnvironmentFile=/home/admin/kafka.env
+# block until names resolve
+ExecStartPre=/bin/bash -c "echo 'io.kafka.iaasbigdata.nextgen callisto.kafka.iaasbigdata.nextgen dia.kafka.iaasbigdata.nextgen' | tr ' ' '\n' | xargs /usr/bin/systemd-resolve"
+ExecStart=/usr/hbase/bin/hbase zookeeper
+Restart=always
+RestartSec=20
+
+[Install]
+WantedBy=multi-user.target

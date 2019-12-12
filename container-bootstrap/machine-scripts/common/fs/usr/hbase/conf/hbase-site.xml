@@ -3,7 +3,7 @@
 <configuration>
   <property>
     <name>hbase.rootdir</name>
-    <value>hdfs://namenode1:8020/hbase</value>
+    <value>hdfs://newhok.hadoop.iaasbigdata.nextgen:8020/hbase</value>
   </property>
   <property>
     <name>hbase.zookeeper.property.clientPort</name>
@@ -22,7 +22,7 @@
   <property>
     <name>hbase.zookeeper.quorum</name>
     <!-- TODO: fix ssh config so we can use role cnames here -->
-    <value>mukoprospect,ohridisles,glimmerfive</value>
+    <value>mukoprospect.hbase.iaasbigdata.nextgen,ohridisles.hbase.iaasbigdata.nextgen,glimmerfive.hbase.iaasbigdata.nextgen</value>
   </property>
   <property>
     <name>hbase.unsafe.stream.capability.enforce</name>

@@ -1,0 +1,31 @@
+#!/bin/bash
+
+br=$1; shift
+[[ -z "$br" ]] && exit 4
+
+# like "172.31.0.0/20"
+net=$1; shift
+[[ -z "$net" ]] && exit 4
+
+# like "172.31.0.254/20"
+listen=$1; shift
+[[ -z "$listen" ]] && exit 4
+
+sudo ip link show $br 2> /dev/null || sudo ip link add $br type bridge
+gpat=$(echo $net | cut -d. -f1,2)
+sudo ip addr show $br | grep -q $gpat || {
+  sudo ip addr add $listen dev $br
+  sudo ip link set dev $br up
+}
+
+# kind of a stupid way to manage this but it'll do for now
+sudo iptables -n -v -t filter -L INPUT | grep -q $br || sudo iptables -I INPUT 1 -m conntrack --ctstate NEW -i $br -j ACCEPT
+
+sudo iptables -n -v -t filter -L FORWARD | grep -q $br || {
+  sudo iptables -I INPUT 1 -m conntrack --ctstate NEW -i $br -j ACCEPT
+  sudo iptables -A FORWARD -i privbridge -o $br -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+  sudo iptables -A FORWARD -i $br -o privbridge -j ACCEPT
+  sudo iptables -A FORWARD -i $br -o $br -j ACCEPT
+}
+
+sudo iptables -n -v -t nat -L POSTROUTING | grep -q privbridge || sudo iptables -t nat -A POSTROUTING -s $net -o privbridge -j MASQUERADE

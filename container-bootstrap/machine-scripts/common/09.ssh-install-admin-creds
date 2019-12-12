@@ -1,12 +1,11 @@
 #!/bin/bash
 
-SOURCE=$(realpath $(dirname $0))
-
-source $SOURCE/scripts-include-pkg
-
 HOST=$1; shift
 DOMAIN=$1; shift
 SSH_MOUNT=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
 
 FQDN="$HOST.$DOMAIN"
 
@@ -14,8 +13,8 @@ echo "Executing ssh installation of admin creds for admin to $FQDN (private key 
 
 mkdir -p /home/admin/.ssh
 echo "admin" > /home/admin/.ssh/authorized_principals
-cp $SSH_MOUNT/*admin*key* /home/admin/.ssh || (echo "Failed to copy admin user key and cert content from $SSH_MOUNT" && exit 1)
-cp $SSH_MOUNT/ssh-config /home/admin/.ssh/config || (echo "Failed to copy generated ssh config from $SSH_MOUNT" && exit 1)
+cp $SSH_MOUNT/$DOMAIN-*admin*key* /home/admin/.ssh || (echo "Failed to copy admin user key and cert content from $SSH_MOUNT" && exit 1)
+cp $SSH_MOUNT/ssh-config-$DOMAIN /home/admin/.ssh/config || (echo "Failed to copy generated ssh config from $SSH_MOUNT" && exit 1)
 
 cert=$(basename $(ls /home/admin/.ssh/*admin-key-cert.pub)) || (echo "Failed to find expected user SSH cert" && exit 1)
 sed -i "s,CertificateFile.*,CertificateFile /home/admin/.ssh/$cert," /home/admin/.ssh/config

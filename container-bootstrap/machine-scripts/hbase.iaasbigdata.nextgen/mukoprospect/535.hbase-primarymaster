@@ -1,0 +1,27 @@
+#!/bin/bash -e
+
+HOST=$1; shift
+DOMAIN=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
+
+echo "Executing setup of HBase Primary Master on $HOST.$DOMAIN"
+
+source ~admin/.bash_profile
+
+svc=hbase-primarymaster.service
+
+cp $COMMON_DIR/fs/etc/systemd/system/$svc /etc/systemd/system/
+
+if [ ! -e "/etc/systemd/system/multi-user.target.wants/$svc" ]; then
+  ln -s /etc/systemd/system/$svc /etc/systemd/system/multi-user.target.wants/
+fi
+
+cp $COMMON_DIR/fs/usr/hbase/conf/* /usr/hbase/conf/
+cp $COMMON_DIR/fs/etc/security/limits.conf /etc/security/
+
+echo "session required pam_limits.so" >> /etc/pam.d/common-session
+
+exit 0

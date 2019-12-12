@@ -6,10 +6,10 @@ Wants=network-online.target
 [Service]
 User=admin
 Group=admin
-EnvironmentFile=/home/admin/hadoop-hbase.env
+EnvironmentFile=/home/admin/hadoop.env
 ExecStart=/usr/hadoop/bin/hdfs namenode
 Restart=always
-RestartSec=60
+RestartSec=20
 
 [Install]
 WantedBy=multi-user.target

@@ -75,7 +75,7 @@ cert=$(basename "$FILE" ".pub")"-cert.pub"
 env -i bash -xc "ssh-keygen -s $GENDIR/${CA_DOMAIN}-ca -n \"$USER\" -V -60m:+${key_valid_weeks}w $ap -I \"$USER user key\" \"$FILE\""
 
 [[ "$NEW" == "true" ]] && {
-  gen_ssh_config=$GENDIR/ssh-config
+  gen_ssh_config=$GENDIR/ssh-config-$CA_DOMAIN
   [[ ! -f "$gen_ssh_config" ]] && out $E "Unable to find $gen_ssh_config" && exit 1
 
   # TODO: consider making this optional

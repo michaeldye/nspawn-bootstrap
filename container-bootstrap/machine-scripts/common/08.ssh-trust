@@ -1,12 +1,11 @@
 #!/bin/bash -e
 
-SOURCE=$(realpath $(dirname $0))
-
-source $SOURCE/scripts-include-pkg
-
 HOST=$1; shift
 DOMAIN=$1; shift
 SSH_MOUNT=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
 
 FQDN="$HOST.$DOMAIN"
 
@@ -14,6 +13,7 @@ echo "Executing ssh-trust installation for $FQDN"
 
 mkdir -p /etc/ssh
 
+# TODO: also trust a root ca (by domain)
 for c in $SSH_MOUNT/${DOMAIN}-ca.pub; do
   cat $c >> /etc/ssh/ca_keys
   echo "@cert-authority * $(cat $c)" > /etc/ssh/ssh_known_hosts
@@ -38,7 +38,7 @@ fi
 )
 
 # add replacement content
-cp $SOURCE/fs/etc/ssh/sshd_config /etc/ssh/
+cp $COMMON_DIR/fs/etc/ssh/sshd_config /etc/ssh/
 
 find /etc/ssh/ -iname "ssh_host_*_key-$FQDN" -printf "%f\0" | xargs -0 -I{} echo "HostKey /etc/ssh/{}" >> /etc/ssh/sshd_config
 find /etc/ssh/ -iname "ssh_host_*_key-$FQDN-cert.pub" -printf "%f\0" | xargs -0 -I{} echo "HostCertificate /etc/ssh/{}" >> /etc/ssh/sshd_config

@@ -6,8 +6,8 @@ Wants=network-online.target
 [Service]
 User=admin
 Group=admin
-EnvironmentFile=/home/admin/hadoop-hbase.env
-ExecStartPre=/bin/nc -v -z -w 3 -4 primarymaster 16000
+EnvironmentFile=/home/admin/hadoop.env
+ExecStartPre=/bin/nc -v -z -w 3 -4 newhok.hadoop.iaasbigdata.nextgen 8020
 # will block start from happening; TODO: figure out why Hadoop datanodes don't recover properly
 ExecStart=/usr/hadoop/bin/hdfs datanode
 Restart=always

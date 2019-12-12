@@ -1,0 +1,14 @@
+#!/bin/bash -e
+
+HOST=$1; shift
+DOMAIN=$1; shift
+_=$1; shift
+COMMON_DIR=$1; shift
+
+source $COMMON_DIR/scripts-include-pkg || exit 6
+
+FQDN="$HOST.$DOMAIN"
+
+echo "Executing setup of curl and netcat-openbsd in $FQDN"
+
+apt-get install -y curl netcat-openbsd

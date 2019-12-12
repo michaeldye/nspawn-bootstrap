@@ -80,7 +80,7 @@ cat > $GENDIR/${DOMAIN}-known-hosts<<EOF
 @cert-authority * $(cat $GENDIR/${DOMAIN}-ca.pub)
 EOF
 
-cat > $GENDIR/ssh-config<<EOF
+cat > $GENDIR/ssh-config-$DOMAIN<<EOF
 LogLevel VERBOSE
 ForwardAgent yes
 UserKnownHostsFile $GENDIR/${DOMAIN}-known-hosts

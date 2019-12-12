@@ -6,7 +6,8 @@ Wants=network-online.target hbase-znode.service
 [Service]
 User=admin
 Group=admin
-EnvironmentFile=/home/admin/hadoop-hbase.env
+EnvironmentFile=/home/admin/hadoop.env
+EnvironmentFile=/home/admin/hbase.env
 # TODO: replace this madness with a proper program and service that creates zookeeper quorum and this service can depend on; have we had a zk quorum? (means we have had > 3 nodes connected before?)
 ExecStartPre=/bin/bash -c "V=$(echo 'stat' | nc -v -w 3 -4 localhost 2181 2> /dev/null | grep -oP 'Node count: \K.+'); ((V > 3))"
 ExecStart=/usr/hbase/bin/hbase master start

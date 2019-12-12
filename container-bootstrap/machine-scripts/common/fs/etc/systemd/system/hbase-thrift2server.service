@@ -6,7 +6,8 @@ Wants=network-online.target
 [Service]
 User=admin
 Group=admin
-EnvironmentFile=/home/admin/hadoop-hbase.env
+EnvironmentFile=/home/admin/hadoop.env
+EnvironmentFile=/home/admin/hbase.env
 ExecStart=/usr/hbase/bin/hbase thrift2 start
 Restart=always
 RestartSec=20

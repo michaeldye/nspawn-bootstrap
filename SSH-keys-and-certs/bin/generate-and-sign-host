@@ -96,7 +96,7 @@ out $I "Generated output written to $(realpath $GENDIR)"
 
 # TODO: consider making this optional
 # TODO: make sequential so we don't have parallel writes, this is run with xargs -Pn where n is usually max
-gen_ssh_config=$GENDIR/ssh-config
+gen_ssh_config=$GENDIR/ssh-config-$DOMAIN
 
 cat $gen_ssh_config | grep -q $HOST.$DOMAIN || {
   cat >> $gen_ssh_config<<EOF

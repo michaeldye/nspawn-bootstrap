@@ -2,6 +2,6 @@
 <configuration>
   <property>
     <name>fs.defaultFS</name>
-    <value>hdfs://namenode1</value>
+    <value>hdfs://newhok.hadoop.iaasbigdata.nextgen</value>
   </property>
 </configuration>

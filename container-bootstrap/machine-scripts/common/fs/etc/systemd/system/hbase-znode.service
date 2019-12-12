@@ -6,9 +6,10 @@ Wants=network-online.target
 [Service]
 User=admin
 Group=admin
-EnvironmentFile=/home/admin/hadoop-hbase.env
+EnvironmentFile=/home/admin/hadoop.env
+EnvironmentFile=/home/admin/hbase.env
 # block until names resolve
-ExecStartPre=/bin/bash -c "echo 'primarymaster regionserver2 regionserver3' | tr ' ' '\n' | xargs /usr/bin/systemd-resolve"
+ExecStartPre=/bin/bash -c "echo 'mukoprospect.hbase.iaasbigdata.nextgen ohridisles.hbase.iaasbigdata.nextgen glimmerfive.hbase.iaasbigdata.nextgen' | tr ' ' '\n' | xargs /usr/bin/systemd-resolve"
 ExecStart=/usr/hbase/bin/hbase zookeeper
 Restart=always
 RestartSec=20
