@@ -96,14 +96,22 @@ out $I "Generated output written to $(realpath $GENDIR)"
 
 # TODO: consider making this optional
 # TODO: make sequential so we don't have parallel writes, this is run with xargs -Pn where n is usually max
-gen_ssh_config=$GENDIR/ssh-config-$DOMAIN
 
-cat $gen_ssh_config | grep -q $HOST.$DOMAIN || {
-  cat >> $gen_ssh_config<<EOF
+cat >> $TEMP/$HOST-ssh-config.shard<<EOF
 
 Host $HOST
   Hostname $HOST.$DOMAIN
 EOF
+
+gen_ssh_config=$GENDIR/ssh-config-$DOMAIN
+cat $gen_ssh_config | grep -q $HOST.$DOMAIN || {
+  (  # our critical section...
+    flock -x -w 3 200 || {
+      out $E "Error writing to shared ssh config file $gen_ssh_config"
+      exit 44
+    }
+    cat $TEMP/$HOST-ssh-config.shard >> $gen_ssh_config
+  ) 200>/tmp/ssh-config-$DOMAIN.mutex
 }
 
 out $I "Finished."

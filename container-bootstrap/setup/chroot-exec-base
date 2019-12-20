@@ -1,15 +1,69 @@
-#!/bin/bash -ex
+#!/bin/bash
+
+set -ouE pipefail
+
+LOCAL_CACHE_URL=${LOCAL_CACHE_URL:="http://localhost:9010"}
+
+function do_curl() {
+  local -n ret=$1; shift # to store return shit
+  local url=$1; shift
+  local dest=$1; shift
+  local c_opt=$@
+
+  curl --connect-timeout 8 -SsLf --dump-header /dev/stderr $c_opt $url -o $dest 2>${dest}.curl-stderr
+  local c_ex=$?
+  local code=$(grep -oP "HTTP/?[\d.]+\s\K\d+" ${dest}.curl-stderr)
+  rm ${dest}.curl-stderr
+
+  # what we return in array
+  ret=("$c_ex" "$code")
+}
 
 function write_to_setup() {
+  local cacheurlbase=$1; shift
+  local remoteurlbase=$1; shift
   local file=$1; shift
-  local urlbase=$1; shift
+  local sha1sum=$1; shift
 
   local dest=/setup/$file
 
-  [[ -f $dest ]] && return 0
+  [[ -f $dest ]] && {
+    [[ $(sha1sum $dest | awk '{print $1}') == "$sha1sum" ]] && {
+      (echo "$dest already exists and matches expected sha1sum, $sha1sum" >&2)
+      return 0
+    } || {
+      # downloaded file doesn't match sum
+      (echo "$dest doesn't match expected sha1sum, $sha1sum" >&2)
+      rm -f $dest
+    }
+  }
 
-  local url=$urlbase/$file
-  curl -l $url > $dest || return 6
+  local url=$cacheurlbase/$file
+
+  local ret_arr
+  # test
+  do_curl ret_arr $url $dest "-I"
+  local ex=${ret_arr[0]}
+
+  ((ex > 0)) || [[ -z "${ret_arr[1]##*[!0-9]*}" ]] || (( ${ret_arr[1]} > 299 )) && {
+    old=$url
+    url=$remoteurlbase/$file
+    echo "Unable to use $old, trying $url"
+  }
+
+  declare -a ret_arr=()
+  echo "Fetching $url..."
+  do_curl ret_arr $url $dest "-#"
+  ex=${ret_arr[0]}
+
+  # the lame way to do this...
+  ((ex == 0)) && [[ -f "$dest" ]] && [[ $(sha1sum $dest | awk '{print $1}') == "$sha1sum" ]] && {
+    (echo "File $dest successfully stored" >&2)
+    return 0
+  } || {
+    (echo "Failed to download required file $dest. Curl exit code: ${ret_arr[0]}. HTTP Status code: ${ret_arr[1]}" >&2)
+    return 8
+  }
 }
 
 ROOT_PASS=$1; shift
@@ -25,6 +79,9 @@ chmod +x /usr/sbin/policy-rc.d
 
 echo "Executing chroot mods for base image"
 
+# read env
+[[ -f "/setup/chroot-dl-versions.env" ]] && source /setup/chroot-dl-versions.env
+
 # we do this for convenience b/c these are often ephemeral containers without other user accounts
 echo "root:$ROOT_PASS" | chpasswd
 
@@ -36,8 +93,22 @@ rm -f /etc/systemd/system/timers.target.wants/fstrim.timer
 # rely on this update operation here
 apt-get update && apt-get install -y curl locales
 
-# read env
-[[ -f "/setup/chroot-dl-versions.env" ]] && source /setup/chroot-dl-versions.env
+FAILED_DL=0
+# TODO: kinda shit b/c it won't interrupt processing if one has already failed, fix that
+write_to_setup $LOCAL_CACHE_URL "https://archive.apache.org/dist/hadoop/core/hadoop-2.9.2" "hadoop-$HADOOP_VER.tar.gz" ebb3f0e5536ee79ec00f8d8a209ef647b10bde26 &
+write_to_setup $LOCAL_CACHE_URL "https://archive.apache.org/dist/hbase/$HBASE_VER" "hbase-$HBASE_VER-bin.tar.gz" c454d2ef153f153db9c6dd8e0cd9044ead1e82bb &
+#write_to_setup $LOCAL_CACHE_URL "https://archive.apache.org/dist/kafka" "kafka_$KAFKA_VER.tgz" ||  ((echo "Unable to fetch Kafka distribution" >&2) && exit 1) &
+#write_to_setup $LOCAL_CACHE_URL "https://archive.apache.org/dist/zookeeper" "apache-zookeeper-$ZOOKEEPER_VER-bin.tar.gz" ||  ((echo "Unable to fetch Zookeeper distribution" >&2) && exit 1) &
+
+for job in $(jobs -p); do
+  wait $job || let "FAILED_DL+=1"
+done
+
+((FAILED_DL > 0)) && {
+  echo "Download failed" >&2
+  exit $FAILED_DL
+}
+
 TO_CACHE=("$JDK_PKG")
 
 for p in "${TO_CACHE[@]}"; do
@@ -45,11 +116,3 @@ for p in "${TO_CACHE[@]}"; do
 done
 
 echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && /usr/sbin/locale-gen
-
-local_cache_url='http://10.109.39.196:9010'
-
-# TODO: check for matching sha sum
-write_to_setup $local_cache_url "hadoop-$HADOOP_VER.tar.gz" ||  ((echo "Unable to fetch Hadoop distribution" >&2) && exit 1) &
-write_to_setup $local_cache_url "hbase-$HBASE_VER.tar.gz" ||  ((echo "Unable to fetch HBase distribution" >&2) && exit 1) &
-write_to_setup $local_cache_url "kafka_$KAFKA_VER.tgz" ||  ((echo "Unable to fetch Kafka distribution" >&2) && exit 1) &
-write_to_setup $local_cache_url "apache-zookeeper-$ZOOKEEPER_VER-bin.tar.gz" ||  ((echo "Unable to fetch Zookeeper distribution" >&2) && exit 1) &

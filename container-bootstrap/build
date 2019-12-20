@@ -6,6 +6,8 @@ SOURCE=$(realpath $(dirname $0))
 #   cd container-bootstrap/machine-scripts/common/; find * -maxdepth 0 -regex '[0-9]+\..*' -type f | xargs
 # ... and then trimmed
 ENABLED_SCRIPTS=${ENABLED_SCRIPTS:="02.console-root-login 03.tzdata 05.systemd-networkd-dhcp 06.admin-user 08.ssh-trust"}
+BOOTSTRAP_URL=${BOOTSTRAP_URL:="http://mirrors.xmission.com/ubuntu"}
+
 
 usage() {
   echo "Usage: $0 -o /var/lib/machines [-f fqdn [-b /chroot/base/dir]]|[-g generate_base_dir_name] [-p root_password] [-s ssh_trust_mount]"
@@ -130,7 +132,7 @@ provision() {
 
   if [[ "$TEMPD"  == "" ]] || [[ "$TEMPD" == "/" ]]; then
     (>&2 echo "Improper temporary FS root provided: '$TEMPD'")
-    exit 4
+    return 4
   else
     trap "cleanup $TEMPD" INT QUIT TERM EXIT
   fi
@@ -145,21 +147,21 @@ DEBUG options
     chroot_base: $CHROOT_BASE
     generate_base_dir_name: $GENERATE_BASE_DIR_NAME
     root_pass: $ROOT_PASS
+    envvar ENABLED_SCRIPTS: $ENABLED_SCRIPTS
 EOF
-#    envvar ENABLED_SCRIPTS: $ENABLED_SCRIPTS
   (>&2 echo "$dout")
 
   # illegal combinations
   if ! [[ -z "$FQDN" ]] && ! [[ -z "$GENERATE_BASE_DIR_NAME" ]]; then
     (>&2 echo "Specifying both --fqdn and --generate_chroot_base_dir is prohibited, exiting.")
     usage
-    exit 2
+    return 2
   fi
 
   if ! [[ -z "$FQDN" ]] && ! [[ -d "$SSH_TRUST_MOUNT" ]]; then
     (>&2 echo "ssh trust mount option not specified or usable and required for setting up $FQDN.")
     usage
-    exit 1
+    return 1
   fi
 
   if [[ "$ROOT_PASS" == "" ]]; then
@@ -181,12 +183,12 @@ EOF
   else
     (>&2 echo "Unknown argument or state, exiting.")
     usage
-    exit 2
+    return 2
   fi
 
   if [[ -d "$OUTDIR" ]]; then
     (>&2 echo "$OUTDIR already exists, exiting.")
-    exit 1
+    return 1
   fi
 
   echo -e "\n------------\nSettings\n------------\n  fqdn: $HOST.$DOMAIN\n  output directory: $OUTDIR\n  root pass: $ROOT_PASS\n"
@@ -201,7 +203,7 @@ EOF
     read resp
     if echo "$resp" | grep -viq "^y"; then
       echo "Aborted"
-      exit 0
+      return 0
     fi
 
     echo -e "\n"
@@ -215,9 +217,9 @@ EOF
     echo "Using debootstrap to generate image"
 
     # N.B. This can be done for foreign architechtures in two stages, see https://linux.die.net/man/8/debootstrap '--foreign'
-    if ! debootstrap --verbose --components=main,restricted,universe,multiverse --include=systemd-container --variant=minbase bionic $TEMPD http://10.109.39.196:8080/archive.ubuntu.com/ubuntu/; then
+    if ! debootstrap --verbose --components=main,restricted,universe,multiverse --include=systemd-container --variant=minbase bionic $TEMPD $BOOTSTRAP_URL; then
       (>&2 echo "ERROR: Failure to complete debootstrap")
-      exit 2
+      return 2
     fi
   fi
 
@@ -236,13 +238,13 @@ EOF
     # only do if there isn't a CHROOT_BASE specified, which is to say that we're making a base image or particular image without a base
     chroot $TEMPD /setup/chroot-exec-base "$ROOT_PASS" || {
       (>&2 echo "ERROR: Failure executing chroot $TEMPD /setup/chroot-exec-base $ROOT_PASS")
-      exit 5
+      return 5
     }
   }
 
   if ! chroot $TEMPD /setup/chroot-exec-particular "$HOST" "$DOMAIN" "$ROOT_PASS"; then
     (>&2 echo "ERROR: Failure executing chroot $TEMPD /setup/chroot-exec-base $HOST $DOMAIN $ROOT_PASS")
-    exit 8
+    return 8
   fi
 
   if [[ "$FQDN" != "" ]]; then
@@ -261,7 +263,7 @@ EOF
     (cd $TEMPD/setup/machine-scripts;
 
       # these are all scripts, filtered in the loop before
-      scripts=$(find -L * -regextype posix-egrep -regex ".*[0-9]+\..*" -and -executable -and -not -regex '.*disabled/.*' -exec basename -z {} \; -exec echo '' {} \; | sort -k1n | awk '{print $2}' | xargs)
+      scripts=$(find -L * -regextype posix-egrep -regex '.*[0-9]+\..*' -and -executable -and -not -regex '.*disabled/.*' -exec basename -z {} \; -exec printf ' %s\n' {} \; | sort -k1n | cut -d' ' -f 2 | uniq | tr '\n' ' ')
       (>&2 echo "INFO: scripts to execute in $TEMPD/setup/machine-scripts: $scripts")
 
       # scripts are full paths ordered by filename
@@ -288,7 +290,7 @@ EOF
 
         chroot $TEMPD /bin/bash -x $chrootedpath "$HOST" "$DOMAIN" /mnt/ssh_trust /setup/machine-scripts/common || {
           (>&2 echo "ERROR: Failure executing chroot $TEMPD $chrootedpath $HOST $DOMAIN /mnt/ssh_trust")
-          exit 6
+          code=6
         }
 
       done)
@@ -298,15 +300,15 @@ EOF
   umount_if $TEMPD
 
   if [[ "$code" == 0 ]]; then
-    (>&2 echo -e "***\nOperations completed sucessfully")
     [[ ! -z "$FQDN" ]] && rm -Rf $TEMPD/setup
     mv $TEMPD $OUTDIR || return 2
+    (>&2 echo -e "***\nOperations completed sucessfully")
   else
     (>&2 echo -e "***\nOperations failed; code: $code")
   fi
 }
 
-TEMP_U=$(uuidgen)
+TEMP_U=$(uuid -v4)
 export TT=${TEMPDIR:=/tmp}
 TEMP=$(realpath $TT/container-bootstrap-$TEMP_U)
 mkdir -p $TEMP
@@ -356,4 +358,5 @@ case "$1" in
 esac
 done
 
-time provision "$YES" "$TEMP" "$FQDN" "$SSH_TRUST_MOUNT" "$OUTDIR_BASE" "$CHROOT_BASE" "$GENERATE_BASE_DIR_NAME" "$ROOT_PASS"; exit $?
+time provision "$YES" "$TEMP" "$FQDN" "$SSH_TRUST_MOUNT" "$OUTDIR_BASE" "$CHROOT_BASE" "$GENERATE_BASE_DIR_NAME" "$ROOT_PASS"
+exit $?

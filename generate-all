@@ -1,0 +1,165 @@
+#!/bin/bash
+
+set -ouE pipefail
+
+BASE="$(realpath $(dirname $0))"
+
+I='INFO'
+E='ERROR'
+VERSION='0.1.0'
+
+export BOOTSTRAP_URL=${BOOTSTRAP_URL:=http://10.109.29.200:8080/archive.ubuntu.com/ubuntu}
+export LOCAL_CACHE_URL=${LOCAL_CACHE_URL:=http://10.109.29.200:9010}
+export TEMPORARY_CON_DIR=${TEMPORARY_CON_DIR:=/tmp}
+
+export BUILD_DIR=$TEMPORARY_CON_DIR/nspawn-build
+mkdir -p $BUILD_DIR
+
+C_BASE=$BASE/container-bootstrap
+S_BASE=$BASE/SSH-keys-and-certs
+
+function out() {
+  local t="$1"; shift
+  local msg="$@"
+
+  (echo "[$t] $msg" >&2)
+}
+
+function random_password() {
+  cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c${1:-32}
+}
+
+function hosts() {
+  local bd=$1; shift
+  local domain=$1; shift
+
+  (cd $bd && find -L * -maxdepth 1 -path "*$domain/*" -type d -print | sort -k2 | xargs)
+}
+
+export -f hosts
+
+function hostpaths() {
+  local mbd=$1; shift
+  local domains=$@
+
+  (echo $domains | xargs -n1 -i -r -d' ' -- bash -c "hosts $mbd {}" | xargs)
+
+}
+
+function domains() {
+  local bd=$1; shift
+
+  (cd $bd && find -maxdepth 1 -type d -printf "%P\n" | grep -v 'common' | sort | xargs)
+}
+
+function generate_ssh() {
+  local mbd=$1; shift
+  local s_base=$1; shift
+
+  local domains=$(domains $mbd)
+  local hostpaths=$(hostpaths $mbd $domains)
+
+  pp=$(random_password)
+
+  out $I "Using generated SSH passphrase $pp for CAs, etc."
+  echo "pp" | $s_base/bin/generate-askpass
+
+  # do all domain CA cert generation in parallel
+  echo $domains | xargs -n1 -P0 $s_base/bin/generate-ca || {
+    co=$?
+    out $E "Failed to generate CA certificate for domain"
+    return $co
+  }
+  # N.B. this is a little dangerous; b/c of the way hosts() and domains() work, we know that we have <domain>/<host> so we split those and process two-at-a-time to get separate args
+  echo $hostpaths | sed 's,[/ ],\n,g' | xargs -n2 -P0 -r -- sh -c "$s_base/bin/generate-and-sign-host \$0 \$1" || {
+    co=$?
+    out $E "Failed to generate host key/certificate pair"
+    return $co
+  }
+}
+
+function check_bridges() {
+  local mbd=$1; shift
+  local domains=$(domains $mbd)
+
+  for d in $domains; do
+    local br=$(echo $d | cut -d. -f1)
+
+    ip link show | grep -q $br || {
+      out $E "$br does not exist, make sure to create it and start dnsmasq on it"
+      return 4
+    }
+  done
+}
+
+function provision_base() {
+  local c_base=$1; shift
+  local root_p=$1; shift
+  local bd=$1; shift
+
+  (cd $c_base && \
+      ./build -y -o $bd -g base -p "$root_p" |& tee $bd/image-base.out) || {
+    out $E "Failed to build base image; check $(realpath $bd/image-base.out) for detail"
+    return 4
+  }
+}
+
+function provision_hosts() {
+  local c_base=$1; shift
+  local root_p=$1; shift
+  local s_base=$1; shift
+  local base_image=$1; shift
+  local mbd=$1; shift
+
+  local domains=$(domains $mbd)
+
+  local prov_log_dir=$TEMPORARY_CON_DIR/nspawn-build
+
+  # enable everything not in 'disabled' dir; this could be more selective if we wanted it to be, the 'build' script supports this
+  # TODO: why won't xargs work here in place of cut?
+  export ENABLED_SCRIPTS=$(cd $mbd; find -L * -regextype posix-egrep -regex '.*[0-9]+\..*' -and -executable -and -not -regex '.*disabled/.*' -exec basename -z {} \; -exec printf ' %s\n' {} \; | sort -k1n | cut -d' ' -f 1 | uniq | tr '\n' ' ')
+
+  local hostpaths=$(hostpaths $mbd $domains)
+
+  FAILED_PROV=0
+
+  for hp in $hostpaths; do
+    local domain=$(echo $hp | awk -F '/' '{print $1}')
+    local host=$(echo $hp | awk -F '/' '{print $2}')
+
+    (cd $c_base && \
+      sudo --preserve-env=ENABLED_SCRIPTS,TEMPDIR,BOOTSTRAP_URL,LOCAL_CACHE_URL bash -c "./build -f $host.$domain -y -o /var/lib/machines -b $base_image -p $root_p -s $s_base |& tee $prov_log_dir/$host.$domain-prov.out"; exit $?) &
+  done
+
+  for job in $(jobs -p); do
+    wait $job || let "FAILED_PROV+=1"
+  done
+
+  ((FAILED_PROV > 0)) && {
+    out $E "$FAILED_PROV provisions failed"
+	}
+
+  return $FAILED_PROV
+}
+
+# will be used for all provisioned machines and spit out on stdout at the end
+ROOT_PASSWORD=${ROOT_PASSWORD:="$(random_password)"}
+MBD=$C_BASE/machine-scripts
+
+# check_bridges $MBD || exit $?
+
+# if SSH-keys-and-certs/generated exists, we assume all keys are right; this is really in support of a zero-state VM-hosted case
+[[ "$(ls -A $S_BASE/generated)" ]] || {
+  out $I "$S_BASE/generated does not exist, creating key content"
+  generate_ssh $MBD $S_BASE || exit $?
+}
+
+provision_base $C_BASE "$ROOT_PASSWORD" $BUILD_DIR || exit $?
+provision_hosts $C_BASE "$ROOT_PASSWORD" $S_BASE $BUILD_DIR/base $MBD || exit $?
+
+echo "All generated machines have root password: $ROOT_PASSWORD"
+echo "Finished."
+
+exit 0
+
+# vim: autoindent tabstop=2 shiftwidth=2 softtabstop=2 expandtab filetype=bash
