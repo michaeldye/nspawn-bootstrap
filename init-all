@@ -25,6 +25,17 @@ function out() {
   (echo "[$t] $msg" >&2)
 }
 
+function curry() {
+    exportfun=$1; shift
+    fun=$1; shift
+    params=$*
+    cmd=$"function $exportfun() {
+        more_params=\$*;
+        $fun $params \$more_params;
+    }"
+    eval $cmd
+}
+
 function random_password() {
   cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c${1:-32}
 }
@@ -104,6 +115,57 @@ function provision_base() {
   }
 }
 
+function doto_hosts() {
+  local mbd=$1; shift
+  local to_exec=$@; shift
+
+  local domains=$(domains $mbd)
+  local hostpaths=$(hostpaths $mbd $domains)
+
+  for hp in $hostpaths; do
+    local domain=$(echo $hp | awk -F '/' '{print $1}')
+    local host=$(echo $hp | awk -F '/' '{print $2}')
+
+    $to_exec $domain $host || return $?
+  done
+
+}
+
+function _write_conf() {
+  local d=$1; shift
+  local h=$1; shift
+
+  local br=$(echo $d | awk -F. '{print $1}')
+
+	local bd=/etc/systemd/nspawn/
+	mkdir -p $bd
+
+  sed 's/^ *//' > $bd/$h.$domain.nspawn <<EOF
+    [Network]
+    VirtualEthernet=yes
+    Bridge=$br
+EOF
+}
+
+function create_nspawn_confs() {
+  local mbd=$1; shift
+
+  doto_hosts $mbd _write_conf || return $?
+}
+
+function _start_single() {
+  local d=$1; shift
+  local h=$1; shift
+
+  systemctl start systemd-nspawn@$h.$d
+}
+
+function start_containers() {
+  local mbd=$1; shift
+
+  doto_hosts $mbd _start_single || return $?
+}
+
 function provision_hosts() {
   local c_base=$1; shift
   local root_p=$1; shift
@@ -123,6 +185,7 @@ function provision_hosts() {
 
   FAILED_PROV=0
 
+	# TODO: reduce duplication here by using doto_hosts HOF
   for hp in $hostpaths; do
     local domain=$(echo $hp | awk -F '/' '{print $1}')
     local host=$(echo $hp | awk -F '/' '{print $2}')
@@ -146,7 +209,7 @@ function provision_hosts() {
 ROOT_PASSWORD=${ROOT_PASSWORD:="$(random_password)"}
 MBD=$C_BASE/machine-scripts
 
-# check_bridges $MBD || exit $?
+check_bridges $MBD || exit $?
 
 # if SSH-keys-and-certs/generated exists, we assume all keys are right; this is really in support of a zero-state VM-hosted case
 [[ "$(ls -A $S_BASE/generated)" ]] || {
@@ -155,7 +218,11 @@ MBD=$C_BASE/machine-scripts
 }
 
 provision_base $C_BASE "$ROOT_PASSWORD" $BUILD_DIR || exit $?
+
+mkdir -p /var/lib/machines
 provision_hosts $C_BASE "$ROOT_PASSWORD" $S_BASE $BUILD_DIR/base $MBD || exit $?
+create_nspawn_confs $MBD || exit $?
+start_containers $MBD || exit $?
 
 echo "All generated machines have root password: $ROOT_PASSWORD"
 echo "Finished."
